@@ -14,8 +14,10 @@ in
   users.users.fur3.isNormalUser = true;
   home-manager.users.fur3 = { pkgs, ... }: {
     #install common apps
-    imports = [ ./../modules/home/common-user-packages.nix ];
-    
+    imports = [ ./../modules/home/common-user-packages.nix ]; 
+    programs.bash.enable = true;
+
+
     # Per user config
     programs.git = {
       enable = true;
@@ -29,10 +31,7 @@ in
         init.defaultBranch = "main";
 	safe.directory = "/etc/nixos";
       };
-      openssh.authorizedKeys.keys = [
-      # FIXME: Add pubkeys of authorized users
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
-    ];
+
 
     };
 

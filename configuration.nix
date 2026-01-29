@@ -63,10 +63,9 @@
 
   # Enable the X11 windowing system.
   services.xserver.enable = true;
-
   # Enable the KDE Plasma Desktop Environment.
   services.displayManager.sddm.enable = true;
-  services.desktopManager.plasma6.enable = true;
+  #services.desktopManager.plasma6.enable = true;
 
 
   services.gnome.gnome-keyring.enable = true;
@@ -107,6 +106,11 @@
     description = "M";
     extraGroups = [ "networkmanager" "wheel" ];
     shell = pkgs.fish;
+    
+    openssh.authorizedKeys.keys = [
+    # Public Key
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
+    ];
   };
 
   # Firefox.
