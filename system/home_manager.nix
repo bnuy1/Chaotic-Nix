@@ -29,6 +29,11 @@ in
         init.defaultBranch = "main";
 	safe.directory = "/etc/nixos";
       };
+      openssh.authorizedKeys.keys = [
+      # FIXME: Add pubkeys of authorized users
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
+    ];
+
     };
 
     # The state version is required and should stay at the version you
