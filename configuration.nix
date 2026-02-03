@@ -6,18 +6,14 @@
 
 {
   imports =
-    [ 
+    [
       ./hardware-configuration.nix
-      ./modules/home/hyprland/hyprland-configuration.nix
-      ./system/virtualisation.nix
-      ./system/polkit.nix
-      ./system/home_manager.nix
-      ./modules/steam.nix
-      #./modules/neovim.nix
+      ./system
+      ./modules
+      ./raina/raina.nix
     ];
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
   # Bootloader.
-  boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
 
   # Use Latest Linux Zen kernel 
@@ -132,7 +128,8 @@
      brightnessctl
      plymouth
      hyprsunset
-  ];
+     protonvpn-gui
+];
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
@@ -149,6 +146,17 @@
   networking.firewall = {
     enable = true;
     trustedInterfaces = [ "wlp6s0" ]; # Qualcomm Wi-Fi interface
+  };
+
+  services.openssh = {
+    enable = true;
+    ports = [ 5432 ];
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+      AllowUsers = [ "raina" "fur3" ];
+    };
   };
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];

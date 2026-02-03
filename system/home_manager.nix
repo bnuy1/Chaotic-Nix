@@ -14,7 +14,7 @@ in
   users.users.fur3.isNormalUser = true;
   home-manager.users.fur3 = { pkgs, ... }: {
     #install common apps
-    imports = [ ./../modules/home/common-user-packages.nix ]; 
+    imports = [ ./../modules/home ]; 
     programs.bash.enable = true;
 
 
