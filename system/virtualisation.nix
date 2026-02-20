@@ -1,4 +1,6 @@
 {pkgs, ...}: {
+  # AppArmor
+  security.apparmor.enable = true;
   # Only enable either docker or podman -- Not both
   virtualisation = {
     docker = {

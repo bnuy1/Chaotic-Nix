@@ -6,6 +6,7 @@ in {
       ./polkit.nix
       ./virtualisation.nix
       ./boot.nix
+      ./networking.nix
   ];                                                                                                    
 }                                                                                                        
   
