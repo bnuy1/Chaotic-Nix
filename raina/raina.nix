@@ -19,6 +19,7 @@ in
     openssh.authorizedKeys.keys = [
     # Public Key
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYmpDO0d8/WMd1FAbvBuZ6TEUoQ/ycJrMm+XRn+RIne raina@Arch"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIbi7shzgg3q+mfHDcjPiSu1aklccEy8Wwh78SAsqWd8 raina@dyingStar"
     ];
   };
 

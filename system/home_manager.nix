@@ -22,18 +22,17 @@ in
     programs.git = {
       enable = true;
       lfs.enable = true;
-
       settings = {
         user = {
           name  = "Ha2k4r";
           email = "enigma557@proton.me";
         };
         init.defaultBranch = "main";
-	safe.directory = "/etc/nixos";
+        safe.directory = "/etc/nixos";
       };
-
-
     };
+
+    services.dunst.enable = true;
 
     # The state version is required and should stay at the version you
     # originally installed.

@@ -2,7 +2,7 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 
 {
   imports =
@@ -18,8 +18,9 @@
 
   # Use Latest Linux Zen kernel 
   boot.kernelPackages = pkgs.linuxPackages_zen;
-  
   boot.kernelModules = [ "ath12k_pci" ]; 
+
+  #networking.networkmanager.dns = "systemd-resolved"; # Use systemd for DNS
 
   # Enable redistributable firmware (needed for Qualcomm Wi-Fi)
   hardware.enableRedistributableFirmware = true;
@@ -38,6 +39,28 @@
 
   # Enable networking
   networking.networkmanager.enable = true;
+  networking.enableIPv6 = false;
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+    settings = {
+      General = {
+        # Shows battery charge of connected devices on supported
+        # Bluetooth adapters. Defaults to 'false'.
+        Experimental = true;
+        # When enabled other devices can connect faster to us, however
+        # the tradeoff is increased power consumption. Defaults to
+        # 'false'.
+        FastConnectable = true;
+      };
+      Policy = {
+        # Enable all controllers when they are found. This includes
+        # adapters present on start as well as adapters that are plugged
+        # in later on. Defaults to 'true'.
+        AutoEnable = true;
+      };
+    };
+  };
 
   # Set your time zone.
   time.timeZone = "America/New_York";
@@ -85,8 +108,9 @@
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
+    wireplumber.enable = true;
     # If you want to use JACK applications, uncomment this
-    #jack.enable = true;
+    #jack.enable = true
 
     # use the example session manager (no others are packaged yet so this is enabled by default,
     # no need to redefine it in your config for now)
@@ -106,6 +130,7 @@
     openssh.authorizedKeys.keys = [
     # Public Key
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPVesdo9hHwSnHBT/QGDegemV63jrvuCcBL8nv/oX3Jc T44P ARCH"
     ];
   };
 
@@ -117,10 +142,29 @@
   # Allow unfree packages
   nixpkgs.config.allowUnfree = false;
 
+  services.sunshine = {
+    enable = true;
+    autoStart = true;
+    capSysAdmin = true;
+    openFirewall = true;
+    settings = {
+      # Web UI port
+      port = 47990;
+
+      origin_web_ui_allowed = "wan";
+    };
+  };
+  services.tailscale.enable = true;
+
+  services.avahi.publish.enable = true;
+  services.avahi.publish.userServices = true;
+
   # List packages installed in system profile. To search, run:
   # $ nix search wget
+  nixpkgs.config.permittedInsecurePackages = [
+    "ventoy-1.1.07"
+  ];
   environment.systemPackages = with pkgs; [
-     neovim
      kitty
      nano
      git
@@ -128,8 +172,22 @@
      brightnessctl
      plymouth
      hyprsunset
-     protonvpn-gui
-];
+     #protonvpn-gui
+     qbittorrent
+     wireguard-tools
+     yt-dlp
+     dunst
+     mullvad-vpn
+     jellyfin
+     jellyfin-desktop
+     blueman
+     zip
+     unzip
+     hugo
+     vscode-langservers-extracted
+     kdePackages.dolphin
+     moonlight-qt
+     ];
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
@@ -151,6 +209,9 @@
   services.openssh = {
     enable = true;
     ports = [ 5432 ];
+
+
+
     settings = {
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
@@ -158,9 +219,10 @@
       AllowUsers = [ "raina" "fur3" ];
     };
   };
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
+  # Open ports in the firewall.           ssh  
+  networking.firewall.allowedTCPPorts = [ 5432 ];
+  networking.firewall.allowedUDPPorts = [ 5432 47998 47999 48000 48002 ];
+
   # Or disable the firewall altogether.
   # networking.firewall.enable = false;
 

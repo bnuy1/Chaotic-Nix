@@ -31,7 +31,6 @@
     libreoffice
     pywal16
     polkit
-    neovim
     git
     curl
     wget
@@ -42,6 +41,7 @@
     vesktop
     prismlauncher
     signal-desktop
+    dunst
   ];
 
   programs.fish = {
