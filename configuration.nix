@@ -110,11 +110,6 @@
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
   
-  programs.element-desktop = {
-    enable = true;
-
-  };
-
   # Allow unfree packages
   nixpkgs.config.allowUnfree = false;
 
@@ -159,6 +154,7 @@
      vscode-langservers-extracted
      kdePackages.dolphin
      moonlight-qt
+     element-desktop
      ];
 
   # Enable the OpenSSH daemon.
