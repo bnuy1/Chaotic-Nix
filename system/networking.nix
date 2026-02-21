@@ -7,8 +7,7 @@
   # Enable networking
   networking = {
     networkmanager.enable = true;
-    enableIPv6 = false;
-    # DNS-over-TLS with Mullvad DNS servers with ad and tracker blocking
+    enableIPv6 = false; 
     nameservers = [ "9.9.9.11" ];
   };
    
