@@ -7,8 +7,8 @@
 {
   imports =
     [
-      ./hardware-configuration.nix
       ./system
+      ./hosts/hosts.nix 
       ./modules
       ./raina/raina.nix
     ];
@@ -22,7 +22,7 @@
     linux-firmware
   ];
 
-  networking.hostName = "nixos"; # Define your hostname.
+  networking.hostName = "antimatter"; # Define your hostname.
 
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
   # Configure network proxy if necessary
