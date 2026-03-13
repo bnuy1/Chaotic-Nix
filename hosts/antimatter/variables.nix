@@ -2,8 +2,8 @@
 
 {
   # Git Configuration ( For Pulling Software Repos )
-  gitUsername = "Tyler Kelley";
-  gitEmail = "tylerzanekelley@gmail.com";
+  gitUsername = "Ha2k4r";
+  gitEmail = "enigma558@proton.me";
 
   # Set Displau Manager
   # `tui` for Text login
@@ -25,14 +25,12 @@
   # extraMonitorSettings = "monitor = HDMI-A-1,1920x1080@60,auto,1";
   # You can configure multiple monitors.
   # Inside the quotes, create a new line for each monitor.
-  extraMonitorSettings = "
-
-    ";
+  extraMonitorSettings = "";
 
   # Waybar Settings (used when barChoice = "waybar")
   clock24h = false;
 
-  browser = "brave";
+  browser = "librewolf";
 
   keyboardLayout = "us";
   keyboardVariant = "";
@@ -42,7 +40,7 @@
   enableNFS = true;
 
   # Enable Printing Support
-  printEnable = false;
+  printEnable = true;
 
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager

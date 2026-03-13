@@ -9,9 +9,9 @@ in
 {
   imports = [
     # For Home Manager
-    #nixvim.homeModules.nixvim
+    nixvim.homeModules.nixvim
     # For NixOS
-    nixvim.nixosModules.nixvim
+    #nixvim.nixosModules.nixvim
   ];
 
   programs.nixvim = {
@@ -22,8 +22,8 @@ in
     opts = {
       number = true;
       relativenumber = true;
-      shiftwidth = 4;
-      tabstop = 4;
+      shiftwidth = 2;
+      tabstop = 2;
       expandtab = true;
       smartindent = true;
       termguicolors = true;
@@ -39,20 +39,6 @@ in
       enable = true;
       settings.flavour = "mocha";
     };
-
-    # =========================
-    # Keymaps
-    # =========================
-    keymaps = [
-      { mode = "n"; key = "<leader>w"; action = ":w<CR>"; }
-      { mode = "n"; key = "<leader>q"; action = ":q<CR>"; }
-      { mode = "n"; key = "<leader>ff"; action = "<cmd>Telescope find_files<CR>"; }
-      { mode = "n"; key = "<leader>fg"; action = "<cmd>Telescope live_grep<CR>"; }
-      { mode = "n"; key = "<leader>fb"; action = "<cmd>Telescope buffers<CR>"; }
-      { mode = "n"; key = "gd"; action = "<cmd>lua vim.lsp.buf.definition()<CR>"; }
-      { mode = "n"; key = "K"; action = "<cmd>lua vim.lsp.buf.hover()<CR>"; }
-      { mode = "n"; key = "<leader>ca"; action = "<cmd>lua vim.lsp.buf.code_action()<CR>"; }
-    ];
 
     # =========================
     # Telescope
@@ -134,7 +120,7 @@ in
 
         html.enable = true;
         cssls.enable = true;
-
+        
         nil_ls.enable = true; # Nix LSP 
         # Hyprland config support (uses bash LSP fallback)
       };

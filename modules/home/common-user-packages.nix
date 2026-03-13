@@ -4,7 +4,7 @@
   home.stateVersion = "25.11";
   
   # Packages that will be downloaded and managed in each users unique home manager instance eg shared accross ALL system users (unless otherwise given a exception)
-  home.packages = with pkgs; [
+  home.packages = with pkgs; [ 
     kdePackages.kate
     alvr
     swww
@@ -30,7 +30,6 @@
     xdg-desktop-portal-hyprland
     libreoffice
     pywal16
-    polkit
     git
     curl
     wget
@@ -50,6 +49,8 @@
       ls = "ls -a --color";
       nrs = "sudo nixos-rebuild switch";
       nnix = "sudo nvim /etc/nixos";
+      gfnix = "ssh mal@fuck.wyfi.top -p 49357";
+      gf = "ssh malachy@fuck.wyfi.top -p 28740";
     };
   };
 

@@ -7,6 +7,8 @@ in {
       ./virtualisation.nix
       ./boot.nix
       ./networking.nix
-  ];                                                                                                    
+      ./steam.nix
+      ./hyprland.nix
+    ];                                                                                                    
 }                                                                                                        
   

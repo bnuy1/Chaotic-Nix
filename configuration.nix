@@ -7,9 +7,8 @@
 {
   imports =
     [
-      ./system
+      ./modules/core
       ./hosts/hosts.nix 
-      ./modules
       ./raina/raina.nix
     ];
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -133,7 +132,6 @@
   ];
 
   environment.systemPackages = with pkgs; [
-     kitty
      nano
      git
      bc
@@ -155,6 +153,7 @@
      kdePackages.dolphin
      moonlight-qt
      element-desktop
+     jdk21_headless
      ];
 
   # Enable the OpenSSH daemon.

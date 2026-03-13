@@ -1,10 +1,7 @@
 { ... }: let                                                                                             
                                                                                                          
 in {                                                                                                     
-   imports = [                                                                                           
-      ./common-user-packages.nix                                                                         
-      ./kitty.nix
-      ./nixvim.nix
-  ];                                                                                                    
+
+programs.hyprland.enable = true;
 }                                                                                                        
   
