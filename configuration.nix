@@ -2,16 +2,21 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, lib, ... }:
-
+{ pkgs, ... }:
+let
+  host = "antimatter";
+in
 {
-  imports =
-    [
-      ./modules/core
-      ./hosts/hosts.nix 
-      ./raina/raina.nix
-    ];
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
+  _module.args.host = host;
+  imports = [
+    ./hosts/hosts.nix
+    ./modules/core
+    ./raina/raina.nix
+  ];
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
 
   # Enable redistributable firmware (needed for Qualcomm Wi-Fi)
   hardware.enableRedistributableFirmware = true;
@@ -21,7 +26,7 @@
     linux-firmware
   ];
 
-  networking.hostName = "antimatter"; # Define your hostname.
+  networking.hostName = host; # Define your hostname.
 
   # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
   # Configure network proxy if necessary
@@ -34,8 +39,8 @@
     dates = "weekly";
     options = "--delete-older-than 30d";
   };
-  
-    # Set your time zone.
+
+  # Set your time zone.
   time.timeZone = "America/New_York";
 
   # Select internationalisation properties.
@@ -62,7 +67,6 @@
   #XDG_CURRENT_DESKTOP=GNOME element-desktop
   services.gnome.gnome-keyring.enable = true;
   security.pam.services.hyprland.enableGnomeKeyring = true;
-
 
   # Configure keymap in X11
   services.xserver.xkb = {
@@ -92,11 +96,14 @@
   users.users.fur3 = {
     isNormalUser = true;
     description = "M";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+    ];
     shell = pkgs.fish;
-    
+
     openssh.authorizedKeys.keys = [
-    # Public Key
+      # Public Key
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPVesdo9hHwSnHBT/QGDegemV63jrvuCcBL8nv/oX3Jc T44P ARCH"
     ];
@@ -108,7 +115,7 @@
   programs.fish.enable = true;
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
-  
+
   # Allow unfree packages
   nixpkgs.config.allowUnfree = false;
 
@@ -132,29 +139,30 @@
   ];
 
   environment.systemPackages = with pkgs; [
-     nano
-     git
-     bc
-     brightnessctl
-     plymouth
-     hyprsunset
-     qbittorrent
-     wireguard-tools
-     yt-dlp
-     dunst
-     mullvad-vpn
-     jellyfin
-     jellyfin-desktop
-     blueman
-     zip
-     unzip
-     hugo
-     vscode-langservers-extracted
-     kdePackages.dolphin
-     moonlight-qt
-     element-desktop
-     jdk21_headless
-     ];
+    drogon
+    nano
+    git
+    bc
+    brightnessctl
+    plymouth
+    hyprsunset
+    qbittorrent
+    wireguard-tools
+    yt-dlp
+    dunst
+    mullvad-vpn
+    jellyfin
+    jellyfin-desktop
+    blueman
+    zip
+    unzip
+    hugo
+    vscode-langservers-extracted
+    kdePackages.dolphin
+    moonlight-qt
+    element-desktop
+    jdk21_headless
+  ];
 
   # Enable the OpenSSH daemon.
   # services.openssh.enable = true;
@@ -171,12 +179,21 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
-      AllowUsers = [ "raina" "fur3" ];
+      AllowUsers = [
+        "raina"
+        "fur3"
+      ];
     };
   };
-  # Open ports in the firewall.           ssh  
+  # Open ports in the firewall.           ssh
   networking.firewall.allowedTCPPorts = [ 5432 ];
-  networking.firewall.allowedUDPPorts = [ 5432 47998 47999 48000 48002 ];
+  networking.firewall.allowedUDPPorts = [
+    5432
+    47998
+    47999
+    48000
+    48002
+  ];
 
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions

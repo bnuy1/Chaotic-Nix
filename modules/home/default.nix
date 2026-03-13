@@ -4,7 +4,7 @@ in {
    imports = [                                                                                           
       ./common-user-packages.nix                                                                         
       ./kitty.nix
-      ./nixvim.nix
+      ./nixvim/nixvim.nix
   ];                                                                                                    
 }                                                                                                        
   

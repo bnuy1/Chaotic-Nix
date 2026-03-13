@@ -1,14 +1,15 @@
-{ ... }: let                                                                                             
-                                                                                                         
-in {                                                                                                     
-   imports = [                                                                                           
-      ./home_manager.nix
-      ./polkit.nix
-      ./virtualisation.nix
-      ./boot.nix
-      ./networking.nix
-      ./steam.nix
-      ./hyprland.nix
-    ];                                                                                                    
-}                                                                                                        
-  
+{ ... }:
+let
+
+in
+{
+  imports = [
+    ./home_manager.nix
+    ./polkit.nix
+    ./virtualisation.nix
+    ./boot.nix
+    ./networking.nix
+    ./steam.nix
+    ./hyprland.nix
+  ];
+}

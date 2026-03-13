@@ -1,6 +1,7 @@
-{ config, lib, ... }:
-
 {
+
+  systemUsername = "fur3";
+
   # Git Configuration ( For Pulling Software Repos )
   gitUsername = "Ha2k4r";
   gitEmail = "enigma558@proton.me";
@@ -46,5 +47,3 @@
   # Dolphin is default File Manager
   thunarEnable = false;
 }
-
-
