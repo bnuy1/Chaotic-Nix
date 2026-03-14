@@ -1,9 +1,28 @@
-{ ... }: 
+{ config, pkgs, ... }:
 
 {
+  wayland.windowManager.hyprland = {
+    enable = true;
+    xwayland.enable = true;
 
-   imports = [
-       ./hyprland.nix
-       ./binds.nix
-   ]
+    # tells Home Manager to use the config file (that systemlinks everything together)
+    extraConfig = ''
+      source = ~/.config/hypr/hyprland.conf
+    '';
+  };
+
+  # systemlinks all the files to ~/.config/hypr so it can use the nix store
+  xdg.configFile = {
+    "hypr/hyprland.conf".source = ./hyprland.conf;
+    "hypr/hyprsunset.conf".source = ./hyprsunset.conf;
+    "hypr/hypridle.conf".source = ./hypridle.conf;
+    "hypr/hyprpaper.conf".source = ./hyprpaper.conf;
+    "hypr/Keybinds.conf".source = ./Keybinds.conf;
+
+    # The scripts directory and everything inside it >:3
+    "hypr/scripts" = {
+      source = ./scripts;
+      recursive = true;
+    };
+  };
 }

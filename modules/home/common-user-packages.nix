@@ -41,6 +41,7 @@
     prismlauncher
     signal-desktop
     dunst
+    kitty
   ];
 
   programs.fish = {
