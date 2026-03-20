@@ -1,10 +1,14 @@
-{ ... }: let                                                                                             
-                                                                                                         
-in {                                                                                                     
-   imports = [                                                                                           
-      ./common-user-packages.nix                                                                         
-      ./kitty.nix
-      ./nixvim/nixvim.nix
-  ];                                                                                                    
-}                                                                                                        
-  
+{ ... }:
+let
+
+in
+{
+  imports = [
+    ./common-user-packages.nix
+    ./kitty.nix
+    ./hyprland
+    ./stylix.nix
+    ./noctalia.nix
+    # Home Manager imports Nixvim uniquely
+  ];
+}

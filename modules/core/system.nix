@@ -32,6 +32,9 @@
     extraGroups = [ "wheel" ];
     createHome = true;
   };
+  # Power Management
+  services.power-profiles-daemon.enable = true;
+  services.upower.enable = true;
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;

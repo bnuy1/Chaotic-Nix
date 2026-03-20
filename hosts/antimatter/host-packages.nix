@@ -1,5 +1,18 @@
-{pkgs, config, lib,  ...}: {
-    environment.systemPackages = with pkgs; [
-    
-    ];
+{
+  pkgs,
+  config,
+  lib,
+  ...
+}:
+{
+  environment.systemPackages = with pkgs; [
+    # Media and file sharing
+    qbittorrent
+    yt-dlp
+    # Machine Specific Development
+    drogon
+    hugo
+    jdk21_headless
+    vscode-langservers-extracted
+  ];
 }

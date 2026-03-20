@@ -1,15 +1,15 @@
-{ ... }:
-let
-
-in
+{ inputs, ... }:
 {
   imports = [
-    ./home_manager.nix
-    ./polkit.nix
-    ./virtualisation.nix
     ./boot.nix
+    ./system.nix
     ./networking.nix
-    ./steam.nix
+    ./virtualisation.nix
+    ./polkit.nix
+    ./home_manager.nix
+    ./stylix.nix
     ./hyprland.nix
+    ./steam.nix
+    ./quickshell.nix
   ];
 }

@@ -1,16 +1,16 @@
 { pkgs, ... }:
 
-{ 
+{
   # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
 
   # Enable networking
   networking = {
     networkmanager.enable = true;
-    enableIPv6 = false; 
+    enableIPv6 = false;
     nameservers = [ "9.9.9.11" ];
   };
-   
+
   services.resolved = {
     enable = true;
     dnssec = "true";
@@ -42,4 +42,36 @@
       };
     };
   };
+
+  # Enable the OpenSSH daemon.
+  # services.openssh.enable = true;
+  networking.firewall = {
+    enable = true;
+    trustedInterfaces = [ "wlp6s0" ]; # Qualcomm Wi-Fi interface
+  };
+
+  services.openssh = {
+    enable = true;
+    ports = [ 5432 ];
+
+    settings = {
+      PasswordAuthentication = false;
+      KbdInteractiveAuthentication = false;
+      PermitRootLogin = "no";
+      AllowUsers = [
+        "raina"
+        "fur3"
+      ];
+    };
+  };
+  # Open ports in the firewall.           ssh
+  networking.firewall.allowedTCPPorts = [ 5432 ];
+  networking.firewall.allowedUDPPorts = [
+    5432
+    47998
+    47999
+    48000
+    48002
+  ];
+
 }

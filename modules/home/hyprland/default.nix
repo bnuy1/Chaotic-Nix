@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ ... }:
 
 {
   wayland.windowManager.hyprland = {
@@ -16,7 +16,6 @@
     "hypr/hyprland.conf".source = ./hyprland.conf;
     "hypr/hyprsunset.conf".source = ./hyprsunset.conf;
     "hypr/hypridle.conf".source = ./hypridle.conf;
-    "hypr/hyprpaper.conf".source = ./hyprpaper.conf;
     "hypr/Keybinds.conf".source = ./Keybinds.conf;
 
     # The scripts directory and everything inside it >:3

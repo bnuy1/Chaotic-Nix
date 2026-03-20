@@ -1,10 +1,15 @@
-{pkgs, ...}: {
+{ pkgs, ... }:
+{
   # AppArmor
   security.apparmor.enable = true;
   # Only enable either docker or podman -- Not both
   virtualisation = {
     docker = {
       enable = true;
+      rootless = {
+        enable = true;
+        setSocketVariable = true;
+      };
     };
 
     podman.enable = false;
@@ -29,4 +34,3 @@
     docker-client
   ];
 }
-

@@ -1,52 +1,139 @@
-{ host, ... }:
+{
+  pkgs,
+  host,
+  inputs,
+  ...
+}:
 
 let
-  home-manager = builtins.fetchTarball "https://github.com/nix-community/home-manager/archive/release-25.11.tar.gz";
-  inherit (import ../../hosts/${host}/variables.nix) systemUsername;
-  inherit (import ../../hosts/${host}/variables.nix) gitUsername;
-  inherit (import ../../hosts/${host}/variables.nix) gitEmail;
+  vars = import ../../hosts/${host}/variables.nix;
+  # home manager library shortcut
+  hmLib = inputs.home-manager.lib;
 in
 {
-  imports = [
-    (import "${home-manager}/nixos")
-  ];
+  # --- NixOS User Definitions ---
+  users.users.${vars.Primary-User} = {
+    isNormalUser = true;
+    description = "Primary User";
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+    ];
+    shell = pkgs.fish; # Adjust if needed
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
+    ];
+  };
 
-  # In the future it would be cool to have a arbatrary number of users that would be itterated through like a list
+  users.users.${vars.Secondary-User} = {
+    isNormalUser = true;
+    description = "Secondary User";
+    extraGroups = [
+      "networkmanager"
+      "wheel"
+    ];
+    shell = pkgs.bash;
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYmpDO0d8/WMd1FAbvBuZ6TEUoQ/ycJrMm+XRn+RIne raina@Arch"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIbi7shzgg3q+mfHDcjPiSu1aklccEy8Wwh78SAsqWd8 raina@dyingStar"
+    ];
+  };
 
-  users.users.fur3.isNormalUser = true;
-
+  ###### Home Manager Configuration #######
   home-manager = {
     useUserPackages = true;
     useGlobalPkgs = true;
     backupFileExtension = "backup";
+    # passes inputs (containing nixvim) to the users files
+    extraSpecialArgs = { inherit inputs host vars; };
 
-    # Per user configs
-
-    users.${systemUsername} =
+    # Secondary User
+    users.${vars.Secondary-User} =
       { pkgs, ... }:
       {
-        #install common apps
-        imports = [ ../home ];
-        programs.bash.enable = true;
 
-        programs.git = {
+        home.username = "${vars.Secondary-User}";
+        home.homeDirectory = "/home/${vars.Secondary-User}";
+        home.stateVersion = "25.11";
+
+        imports = [
+          ../home
+          # Dynamically imports ../home/nixvim/username.nix ITS SO COOL
+          (./. + "/../home/nixvim/${vars.Secondary-User}.nix")
+        ];
+
+        home.packages = with pkgs; [
+          btop
+          hyfetch
+          fastfetch
+          fd
+          gcc
+          ripgrep
+        ];
+
+        programs.bash = {
           enable = true;
-          lfs.enable = true;
-          settings = {
-            user = {
-              name = "${gitUsername}";
-              email = "${gitEmail}";
-            };
-            init.defaultBranch = "main";
-            safe.directory = "/etc/nixos";
+          shellAliases = {
+            ls = "ls -a --color";
+            nrs = "sudo nixos-rebuild switch --flake .";
           };
         };
 
-        services.dunst.enable = true;
+        programs.git = {
+          enable = true;
+          settings = {
+            user = {
+              name = "${vars.Secondary-User_gitUsername}";
+              email = "${vars.Secondary-User_gitEmail}";
+            };
+          };
+        };
+      };
 
-        # The state version is required and should stay at the version you
-        # originally installed.
+    # Configuration for the Primary User of the system
+    users.${vars.Primary-User} =
+      { pkgs, ... }:
+      {
+        home.activation.copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          TARGET_DIR="/home/${vars.Primary-User}/Pictures/wallpapers"
+          SRC_PATH="${../../assets/wallpapers}"
+
+          # Clean start
+          /run/current-system/sw/bin/rm -rf "$TARGET_DIR" || true
+          /run/current-system/sw/bin/mkdir -p "$TARGET_DIR"
+
+          # Copy the files
+          if [ -d "$SRC_PATH" ]; then
+            /run/current-system/sw/bin/cp -rfL "$SRC_PATH"/. "$TARGET_DIR/" || true
+          fi
+
+          #  Final Polish (Owner can do everything, others nothing)
+          /run/current-system/sw/bin/chmod 0700 "$TARGET_DIR" || true
+          /run/current-system/sw/bin/find "$TARGET_DIR" -type f -exec /run/current-system/sw/bin/chmod 0600 {} + || true
+        '';
+        home.username = "${vars.Primary-User}";
+        home.homeDirectory = "/home/${vars.Primary-User}";
         home.stateVersion = "25.11";
+
+        imports = [
+          ../home
+          # Dynamic import of ../home/nixvim/username.nix
+          (./. + "/../home/nixvim/${vars.Primary-User}.nix")
+        ];
+
+        home.packages = with pkgs; [
+          git
+          btop
+        ];
+        programs.git = {
+          enable = true;
+          settings = {
+            user = {
+              name = "${vars.gitUsername}";
+              email = "${vars.gitEmail}";
+            };
+          };
+        };
       };
   };
 }

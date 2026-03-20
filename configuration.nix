@@ -1,18 +1,17 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
-
-{ pkgs, ... }:
-let
-  host = "antimatter";
-in
+{
+  pkgs,
+  host,
+  networkingHostname,
+  ...
+}:
 {
   _module.args.host = host;
   imports = [
-    ./hosts/hosts.nix
     ./modules/core
-    ./raina/raina.nix
+    ./hosts/${host}
+    ./modules/development/minecraft-server
   ];
+
   nix.settings.experimental-features = [
     "nix-command"
     "flakes"
@@ -26,37 +25,7 @@ in
     linux-firmware
   ];
 
-  networking.hostName = host; # Define your hostname.
-
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-  # Garbage collection
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
-
-  # Set your time zone.
-  time.timeZone = "America/New_York";
-
-  # Select internationalisation properties.
-  i18n.defaultLocale = "en_US.UTF-8";
-
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "en_US.UTF-8";
-    LC_IDENTIFICATION = "en_US.UTF-8";
-    LC_MEASUREMENT = "en_US.UTF-8";
-    LC_MONETARY = "en_US.UTF-8";
-    LC_NAME = "en_US.UTF-8";
-    LC_NUMERIC = "en_US.UTF-8";
-    LC_PAPER = "en_US.UTF-8";
-    LC_TELEPHONE = "en_US.UTF-8";
-    LC_TIME = "en_US.UTF-8";
-  };
+  networking.hostName = networkingHostname; # Define your hostname.
 
   # Enable the X11 windowing system.
   services.xserver.enable = true;
@@ -77,47 +46,9 @@ in
   # Enable CUPS to print documents.
   services.printing.enable = true;
 
-  # Enable sound with pipewire.
-  services.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-    wireplumber.enable = true;
-    # If you want to use JACK applications, uncomment this
-    #jack.enable = true
-
-    #media-session.enable = true;
-  };
-
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.fur3 = {
-    isNormalUser = true;
-    description = "M";
-    extraGroups = [
-      "networkmanager"
-      "wheel"
-    ];
-    shell = pkgs.fish;
-
-    openssh.authorizedKeys.keys = [
-      # Public Key
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
-      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPVesdo9hHwSnHBT/QGDegemV63jrvuCcBL8nv/oX3Jc T44P ARCH"
-    ];
-  };
-
-  # Firefox.
-  programs.firefox.enable = true;
-  # Fish
   programs.fish.enable = true;
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
-
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = false;
 
   services.sunshine = {
     enable = true;
@@ -139,16 +70,13 @@ in
   ];
 
   environment.systemPackages = with pkgs; [
-    drogon
     nano
     git
     bc
     brightnessctl
     plymouth
     hyprsunset
-    qbittorrent
     wireguard-tools
-    yt-dlp
     dunst
     mullvad-vpn
     jellyfin
@@ -156,43 +84,10 @@ in
     blueman
     zip
     unzip
-    hugo
-    vscode-langservers-extracted
     kdePackages.dolphin
     moonlight-qt
     element-desktop
-    jdk21_headless
-  ];
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
-  networking.firewall = {
-    enable = true;
-    trustedInterfaces = [ "wlp6s0" ]; # Qualcomm Wi-Fi interface
-  };
-
-  services.openssh = {
-    enable = true;
-    ports = [ 5432 ];
-
-    settings = {
-      PasswordAuthentication = false;
-      KbdInteractiveAuthentication = false;
-      PermitRootLogin = "no";
-      AllowUsers = [
-        "raina"
-        "fur3"
-      ];
-    };
-  };
-  # Open ports in the firewall.           ssh
-  networking.firewall.allowedTCPPorts = [ 5432 ];
-  networking.firewall.allowedUDPPorts = [
-    5432
-    47998
-    47999
-    48000
-    48002
+    kitty
   ];
 
   # This value determines the NixOS release from which the default
@@ -201,6 +96,5 @@ in
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "25.11"; # Did you read the comment?
-
+  system.stateVersion = "25.11";
 }

@@ -1,8 +1,7 @@
-{...}: {
+{ ... }:
+{
   imports = [
-    ../../hardware-configuration.nix
+    ./hardware-configuration.nix
     ./host-packages.nix
   ];
 }
-
-

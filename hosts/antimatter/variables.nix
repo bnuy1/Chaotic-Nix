@@ -1,10 +1,17 @@
 {
 
-  systemUsername = "fur3";
+  Primary-User = "fur3";
+  Secondary-User = "raina";
+
+  # Used by stylix
+  defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
 
   # Git Configuration ( For Pulling Software Repos )
   gitUsername = "Ha2k4r";
   gitEmail = "enigma558@proton.me";
+
+  Secondary-User_gitUsername = "Indigo-69";
+  Secondary-User_gitEmail = "wyfi08g@proton.me";
 
   # Set Displau Manager
   # `tui` for Text login
