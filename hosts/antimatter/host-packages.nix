@@ -6,6 +6,8 @@
 }:
 {
   environment.systemPackages = with pkgs; [
+    tor
+    tor-browser
     # Media and file sharing
     qbittorrent
     yt-dlp

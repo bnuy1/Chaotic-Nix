@@ -11,5 +11,6 @@
     ./hyprland.nix
     ./steam.nix
     ./quickshell.nix
+    ./printing.nix
   ];
 }
