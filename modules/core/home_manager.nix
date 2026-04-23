@@ -11,7 +11,6 @@ let
   hmLib = inputs.home-manager.lib;
 in
 {
-  # --- NixOS User Definitions ---
   users.users.${vars.Primary-User} = {
     isNormalUser = true;
     description = "Primary User";
@@ -19,9 +18,10 @@ in
       "networkmanager"
       "wheel"
     ];
-    shell = pkgs.fish; # Adjust if needed
+    shell = pkgs.fish;
     openssh.authorizedKeys.keys = [
       "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAX35vvNbcI+GZDoPeRBf/418a2GRg4M+JuL5rFUTvXS mal@missNectarine"
     ];
   };
 
@@ -59,7 +59,7 @@ in
         imports = [
           ../home
           # Dynamically imports ../home/nixvim/username.nix ITS SO COOL
-          (./. + "/../home/nixvim/${vars.Secondary-User}.nix")
+          #(./. + "/../home/nixvim/${vars.Secondary-User}.nix")
         ];
 
         home.packages = with pkgs; [
@@ -94,32 +94,43 @@ in
     users.${vars.Primary-User} =
       { pkgs, ... }:
       {
+        # A broken, nonworking attempt to make wallpapers accross userspace
         home.activation.copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
           TARGET_DIR="/home/${vars.Primary-User}/Pictures/wallpapers"
           SRC_PATH="${../../assets/wallpapers}"
 
-          # Clean start
+          # murder the previous wallpapers
           /run/current-system/sw/bin/rm -rf "$TARGET_DIR" || true
           /run/current-system/sw/bin/mkdir -p "$TARGET_DIR"
 
-          # Copy the files
           if [ -d "$SRC_PATH" ]; then
             /run/current-system/sw/bin/cp -rfL "$SRC_PATH"/. "$TARGET_DIR/" || true
           fi
 
-          #  Final Polish (Owner can do everything, others nothing)
+          #  Owner can do everything, others nothing
           /run/current-system/sw/bin/chmod 0700 "$TARGET_DIR" || true
           /run/current-system/sw/bin/find "$TARGET_DIR" -type f -exec /run/current-system/sw/bin/chmod 0600 {} + || true
         '';
         home.username = "${vars.Primary-User}";
         home.homeDirectory = "/home/${vars.Primary-User}";
         home.stateVersion = "25.11";
-
+        home.sessionVariables = {
+          EDITOR = "nvim";
+          VISUAL = "nvim";
+          SUDO_EDITOR = "nvim";
+        };
         imports = [
           ../home
           # Dynamic import of ../home/nixvim/username.nix
-          (./. + "/../home/nixvim/${vars.Primary-User}.nix")
-        ];
+	  (let
+	    # test if it exists
+	    userFileExists = builtins.pathExists ../home/nixvim/${vars.Primary-User}.nix;
+	    
+	    # find the filename string as potentially "default"
+	    fileName = if userFileExists then vars.Primary-User else "default";
+	  in
+	  ../home/nixvim/${fileName}.nix)
+          ];
 
         home.packages = with pkgs; [
           git

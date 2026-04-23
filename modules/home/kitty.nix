@@ -1,17 +1,31 @@
 { lib, ... }:
 
 {
-
   programs.kitty = lib.mkForce {
     enable = true;
+
     settings = {
-      confirm_os_window_close = 2;
+      # Fonts
+      font_family = "Iosevka";
+      bold_font = "auto";
+      italic_font = "auto";
+      bold_italic_font = "auto";
+      font_size = 15.0;
+
+      # Window behavior
+      confirm_os_window_close = 3;
+
+      # Appearance
+      background_opacity = "0.6";
       dynamic_background_opacity = true;
+      background_blur = 5;
+      window_padding_width = 10;
+
+      # Misc
       enable_audio_bell = false;
       mouse_hide_wait = "-1.0";
-      window_padding_width = 10;
-      background_opacity = "0.7";
-      background_blur = 5;
+
+      # Nerd font symbol fallback (keep this if NOT using a Nerd Font as main font)
       symbol_map =
         let
           mappings = [
@@ -36,6 +50,12 @@
           ];
         in
         (builtins.concatStringsSep "," mappings) + " Symbols Nerd Font";
+    };
+
+    # Key mappings go here
+    keybindings = {
+      "ctrl+equal" = "increase_font_size";
+      "ctrl+minus" = "decrease_font_size";
     };
   };
 }

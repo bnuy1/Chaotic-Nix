@@ -1,10 +1,12 @@
 { pkgs, lib, ... }:
 let
-  nixvim = import (builtins.fetchGit {
-    url = "https://github.com/nix-community/nixvim";
-    # If you are not running an unstable channel of nixpkgs, select the corresponding branch of Nixvim.
-    ref = "nixos-25.11";
-  });
+  nixvim = import (
+    builtins.fetchGit {
+      url = "https://github.com/nix-community/nixvim";
+      # If you are not running an unstable channel of nixpkgs, select the corresponding branch of Nixvim.
+      ref = "nixos-25.11";
+    }
+  );
 in
 {
   imports = [
@@ -71,7 +73,7 @@ in
         vimdoc
         xml
         yaml
-        ];
+      ];
     };
 
     # =========================
@@ -113,15 +115,18 @@ in
 
         clangd = {
           enable = true;
-          cmd = [ "clangd" "--background-index" ];
+          cmd = [
+            "clangd"
+            "--background-index"
+          ];
         };
 
         bashls.enable = true;
 
         html.enable = true;
         cssls.enable = true;
-        
-        nil_ls.enable = true; # Nix LSP 
+
+        nil_ls.enable = true; # Nix LSP
         # Hyprland config support (uses bash LSP fallback)
       };
     };

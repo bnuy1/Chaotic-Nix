@@ -16,7 +16,7 @@
   # Set Displau Manager
   # `tui` for Text login
   # `sddm` for graphical GUI (default)
-  displayManager = "tui";
+  displayManager = "sddm";
 
   # Emable/disable bundled applications
   tmuxEnable = false;

@@ -87,7 +87,7 @@
     kdePackages.dolphin
     moonlight-qt
     element-desktop
-    kitty
+    iosevka
   ];
 
   # This value determines the NixOS release from which the default

@@ -8,7 +8,9 @@
   networking = {
     networkmanager.enable = true;
     enableIPv6 = false;
-    nameservers = [ "9.9.9.11" ];
+    nameservers = [ "1.1.1.1" ];
+
+    #nameservers = [ "192.168.1.99" ];
   };
 
   services.resolved = {
@@ -16,9 +18,9 @@
     dnssec = "true";
     domains = [ "~." ];
     # Force all DNS traffic to be encrypted using TLS
-    dnsovertls = "true";
+    #dnsovertls = "true";
     # Use TLS when possible, but fallback to unencrypted
-    #dnsovertls = "opportunistic";
+    dnsovertls = "opportunistic";
   };
 
   hardware.bluetooth = {

@@ -16,5 +16,6 @@
     hugo
     jdk21_headless
     vscode-langservers-extracted
+    rpi-imager
   ];
 }
