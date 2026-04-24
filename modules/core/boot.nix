@@ -9,6 +9,7 @@
       canTouchEfiVariables = true;
     };
     grub = {
+      theme = "/etc/nixos/assets/grub-theme/breeze/";
       efiSupport = true;
       #efiInstallAsRemovable = true; # in case canTouchEfiVariables doesn't work for your system
       device = "nodev";

@@ -69,27 +69,6 @@
     "ventoy-1.1.07"
   ];
 
-  environment.systemPackages = with pkgs; [
-    nano
-    git
-    bc
-    brightnessctl
-    plymouth
-    hyprsunset
-    wireguard-tools
-    dunst
-    mullvad-vpn
-    jellyfin
-    jellyfin-desktop
-    blueman
-    zip
-    unzip
-    kdePackages.dolphin
-    moonlight-qt
-    element-desktop
-    iosevka
-  ];
-
   # This value determines the NixOS release from which the default
   # settings for stateful data, like file locations and database versions
   # on your system were taken. It‘s perfectly fine and recommended to leave

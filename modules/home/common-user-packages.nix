@@ -28,7 +28,6 @@
     inotify-tools
     acpid
     iproute2
-    xdg-desktop-portal-hyprland
     libreoffice
     pywal16
     git
