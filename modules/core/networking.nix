@@ -54,7 +54,7 @@
 
   services.openssh = {
     enable = true;
-    ports = [ 5432 ];
+    ports = [ 2222 ];
 
     settings = {
       PasswordAuthentication = false;
@@ -69,7 +69,7 @@
   # Open ports in the firewall.           ssh
   networking.firewall.allowedTCPPorts = [ 5432 ];
   networking.firewall.allowedUDPPorts = [
-    5432
+    2222
     47998
     47999
     48000

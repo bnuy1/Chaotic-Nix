@@ -238,7 +238,7 @@ in
         performanceModeDisabled = "";
         startup = "";
         session = "";
-        colorGeneration = "";
+        colorGeneration = "M3-Content";
       };
 
     };

@@ -10,6 +10,7 @@
     ./modules/core
     ./hosts/${host}
     ./modules/development/minecraft-server
+    ./modules/development/matrix/matrix.nix
   ];
 
   nix.settings.experimental-features = [

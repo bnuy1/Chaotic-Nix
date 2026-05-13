@@ -25,6 +25,11 @@
     mode = "0444";
   };
 
+  sops.secrets."minecraft/MYSQL_PASSWORD" = {
+    owner = "mysql";
+    mode = "0440";
+  };
+
   sops.secrets."minecraft/VELOCITY_SECRET" = {
     # Write the secret to a plaintext file for velocity to forward player info to
     owner = "root";

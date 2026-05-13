@@ -44,6 +44,8 @@
     lshw
     zoxide
     grc
+    # terminal ding sound
+    libcanberra-gtk3
     #fish plugins are downloaded in the host files
   ];
 
@@ -52,14 +54,14 @@
     interactiveShellInit = ''
       set fish_greeting # Disable greeting
       set -g __done_min_cmd_duration 10000
-      set -g __done_notify_sound 1    
       set -g __done_notification_urgency_level low
       set -g __done_notification_urgency_level_failure normal
-      set -g __done_allow_nongraphical 1
-      set -g __done_notification_command "echo \$title \$message"
-      # Make manpages colorfull without the colored-man-pages because i couldent get it to work with 2 hours of trying
       set -gx MANPAGER "nvim +Man!"
       zoxide init fish | source
+      set -g __done_notify_active_window 0
+      set -g __done_exclude 'nvim|vi|emacs|tldr|htop|top|nvtop|vim|nano|man|less'
+      set -g __done_notification_command "notify-send -u low -i terminal \"\$title\" \"\$message\""
+      set -U __done_notify_sound 1
     '';
 
     shellAliases = {

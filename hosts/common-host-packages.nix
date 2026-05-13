@@ -2,6 +2,10 @@
 
 {
   environment.systemPackages = with pkgs; [
+    # Development
+    nodejs
+    ollama
+    opencode
 
     plymouth
     hyprsunset
@@ -17,6 +21,7 @@
     # System utils
     zip
     unzip
+    ripgrep
     moreutils
     nano
     bat
