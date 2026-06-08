@@ -1,6 +1,6 @@
 { config, lib, pkgs, ... }:
 let
-  inherit (lib) mkEnableOption mkPackageOption mkIf maintainers;
+  inherit (lib) mkEnableOption mkPackageOption mkIf;
   cfg = config.services.hyprpolkitagent;
 in {
 

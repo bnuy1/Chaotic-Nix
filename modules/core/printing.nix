@@ -1,20 +1,15 @@
-{ ... }:
-let
-  printEnable = true;
-in
+{ vars, ... }:
 {
   services = {
     printing = {
-      enable = printEnable;
-      drivers = [
-        # pkgs.hplipWithPlugin
-      ];
+      enable = vars.printEnable;
+      drivers = [ ];
     };
     avahi = {
-      enable = printEnable;
+      enable = vars.printEnable;
       nssmdns4 = true;
       openFirewall = true;
     };
-    ipp-usb.enable = printEnable;
+    ipp-usb.enable = vars.printEnable;
   };
 }

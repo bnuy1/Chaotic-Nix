@@ -18,10 +18,7 @@
       enable = true;
     };
 
-    virtualbox.host = {
-      enable = false;
-      enableExtensionPack = true;
-    };
+    virtualbox.host.enable = false;
   };
 
   programs = {

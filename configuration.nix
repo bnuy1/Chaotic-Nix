@@ -1,7 +1,9 @@
 {
   pkgs,
+  lib,
   host,
   networkingHostname,
+  vars,
   ...
 }:
 {
@@ -9,9 +11,7 @@
   imports = [
     ./modules/core
     ./hosts/${host}
-    ./modules/development/minecraft-server
-    ./modules/development/matrix/matrix.nix
-  ];
+  ] ++ lib.optional (builtins.pathExists ./modules/development/t440p/t4.nix) ./modules/development/t440p/t4.nix;
 
   nix.settings.experimental-features = [
     "nix-command"
@@ -30,9 +30,7 @@
 
   # Enable the X11 windowing system.
   services.xserver.enable = true;
-  # Enable the KDE Plasma Desktop Environment.
   services.displayManager.sddm.enable = true;
-  #services.desktopManager.plasma6.enable = true;
 
   #XDG_CURRENT_DESKTOP=GNOME element-desktop
   services.gnome.gnome-keyring.enable = true;
@@ -40,14 +38,14 @@
 
   # Configure keymap in X11
   services.xserver.xkb = {
-    layout = "us";
-    variant = "";
+    layout = vars.keyboardLayout;
+    variant = vars.keyboardVariant;
   };
 
-  # Enable CUPS to print documents.
-  services.printing.enable = true;
-
   programs.fish.enable = true;
+
+  programs.nix-ld.enable = true;
+  programs.command-not-found.enable = true;
 
   environment.sessionVariables.NIXOS_OZONE_WL = "1";
 

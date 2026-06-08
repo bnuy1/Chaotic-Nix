@@ -1,5 +1,4 @@
 {
-
   Primary-User = "fur3";
   Secondary-User = "raina";
 
@@ -9,22 +8,21 @@
   # Git Configuration ( For Pulling Software Repos )
   gitUsername = "Ha2k4r";
   gitEmail = "enigma558@proton.me";
-
   Secondary-User_gitUsername = "Indigo-69";
   Secondary-User_gitEmail = "wyfi08g@proton.me";
 
-  # Set Displau Manager
+  # Set Display Manager
   # `tui` for Text login
   # `sddm` for graphical GUI (default)
   displayManager = "tui";
 
-  # Emable/disable bundled applications
+  # Enable/disable bundled applications
   tmuxEnable = false;
   weztermEnable = false;
   ghosttyEnable = false;
   # Note: This is evil-helix with VIM keybindings by default
   helixEnable = false;
-  #To install: Enable here, zcli rebuild, then run zcli doom install
+  # To install: Enable here, zcli rebuild, then run zcli doom install
   doomEmacsEnable = false;
 
   # Hyprland Settings
@@ -40,6 +38,9 @@
 
   browser = "librewolf";
 
+  suspendEnable = true;
+  hibernateEnable = false;
+
   keyboardLayout = "us";
   keyboardVariant = "";
   consoleKeyMap = "us";
@@ -53,4 +54,6 @@
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager
   thunarEnable = false;
+
+  timeZone = "America/New_York";
 }

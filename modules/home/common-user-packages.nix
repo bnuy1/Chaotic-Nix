@@ -1,8 +1,6 @@
 { config, pkgs, ... }:
 
 {
-  home.stateVersion = "25.11";
-
   # Packages that will be downloaded and managed in each users unique home manager instance eg shared accross ALL system users (unless otherwise given a exception)
   home.packages = with pkgs; [
     kdePackages.kate
@@ -16,10 +14,9 @@
     dosfstools
     pavucontrol
     arduino
+    btop
     fastfetch
     waybar
-    brightnessctl
-    plymouth
     hypridle
     hyprlock
     rofi
@@ -30,7 +27,6 @@
     iproute2
     libreoffice
     pywal16
-    git
     curl
     wget
     htop
@@ -39,8 +35,6 @@
     vesktop
     prismlauncher
     signal-desktop
-    dunst
-    kitty
     lshw
     zoxide
     grc
@@ -56,6 +50,7 @@
       set -g __done_min_cmd_duration 10000
       set -g __done_notification_urgency_level low
       set -g __done_notification_urgency_level_failure normal
+      # Make manpages colorfull without the colored-man-pages because i couldent get it to work with 2 hours of trying
       set -gx MANPAGER "nvim +Man!"
       zoxide init fish | source
       set -g __done_notify_active_window 0

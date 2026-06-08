@@ -12,8 +12,6 @@ in
   imports = [
     # For Home Manager
     nixvim.homeModules.nixvim
-    # For NixOS
-    #nixvim.nixosModules.nixvim
   ];
 
   programs.nixvim = {
@@ -57,16 +55,14 @@ in
         python
         c
         cpp
-        bash
-        html
-        css
-        nix
-        make
-        bash
-        json
-        lua
-        make
-        markdown
+          bash
+          html
+          css
+          nix
+          make
+          json
+          lua
+          markdown
         regex
         toml
         vim

@@ -1,15 +1,12 @@
 {
   Primary-User = "fur3";
-  Secondary-User = "raina";
 
   # Used by stylix
   defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
 
   # Git Configuration ( For Pulling Software Repos )
-  gitUsername = "bnuy1";
-  gitEmail = "bnuy@bnuy.dev";
-  Secondary-User_gitUsername = "Indigo-69";
-  Secondary-User_gitEmail = "wyfi08g@proton.me";
+  gitUsername = "Ha2k4r";
+  gitEmail = "enigma558@proton.me";
 
   # Set Display Manager
   # `tui` for Text login
@@ -39,17 +36,17 @@
   browser = "librewolf";
 
   suspendEnable = true;
-  hibernateEnable = false;
+  hibernateEnable = true;
 
   keyboardLayout = "us";
   keyboardVariant = "";
   consoleKeyMap = "us";
 
   # Enable NFS
-  enableNFS = true;
+  enableNFS = false;
 
   # Enable Printing Support
-  printEnable = true;
+  printEnable = false;
 
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager

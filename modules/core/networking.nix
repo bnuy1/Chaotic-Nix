@@ -1,26 +1,21 @@
-{ pkgs, ... }:
+{ pkgs, vars, lib, ... }:
 
 {
-  # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
 
-  # Enable networking
   networking = {
     networkmanager.enable = true;
     enableIPv6 = false;
     nameservers = [ "1.1.1.1" ];
-
-    #nameservers = [ "192.168.1.99" ];
   };
 
   services.resolved = {
     enable = true;
-    dnssec = "true";
-    domains = [ "~." ];
-    # Force all DNS traffic to be encrypted using TLS
-    #dnsovertls = "true";
-    # Use TLS when possible, but fallback to unencrypted
-    dnsovertls = "opportunistic";
+    settings.Resolve = {
+      DNSOverTLS = "opportunistic";
+      DNSSEC = "true";
+      Domains = [ "~." ];
+    };
   };
 
   hardware.bluetooth = {
@@ -28,45 +23,36 @@
     powerOnBoot = true;
     settings = {
       General = {
-        # Shows battery charge of connected devices on supported
-        # Bluetooth adapters. Defaults to 'false'.
         Experimental = true;
-        # When enabled other devices can connect faster to us, however
-        # the tradeoff is increased power consumption. Defaults to
-        # 'false'.
         FastConnectable = true;
       };
-      Policy = {
-        # Enable all controllers when they are found. This includes
-        # adapters present on start as well as adapters that are plugged
-        # in later on. Defaults to 'true'.
-        AutoEnable = true;
-      };
+      Policy.AutoEnable = true;
     };
   };
 
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
   networking.firewall = {
     enable = true;
-    trustedInterfaces = [ "wlp6s0" ]; # Qualcomm Wi-Fi interface
+    trustedInterfaces = [ "wlp6s0" ];
   };
 
   services.openssh = {
     enable = true;
     ports = [ 2222 ];
-
     settings = {
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
-      AllowUsers = [
-        "raina"
-        "fur3"
-      ];
+      AllowUsers = [ vars.Primary-User ] ++ lib.optionals (vars ? Secondary-User) [ vars.Secondary-User ];
+      MaxAuthTries = 3;
+      MaxSessions = 4;
+      ClientAliveInterval = 300;
+      ClientAliveCountMax = 2;
+      AllowTcpForwarding = "no";
+      X11Forwarding = false;
+      LogLevel = "VERBOSE";
     };
   };
-  # Open ports in the firewall.           ssh
+
   networking.firewall.allowedTCPPorts = [ 5432 ];
   networking.firewall.allowedUDPPorts = [
     2222
@@ -76,4 +62,12 @@
     48002
   ];
 
+  services.fail2ban = {
+    enable = true;
+    maxretry = 5;
+    ignoreIP = [
+      "127.0.0.1/8"
+      "192.168.0.0/24"
+    ];
+  };
 }

@@ -67,7 +67,13 @@
       telescope.enable = true;
 
       # Treesitter for syntax/TS features
-      treesitter.enable = true;
+      treesitter = {
+        enable = true;
+        grammarPackages = with pkgs.vimPlugins.nvim-treesitter.builtGrammars; [
+          c
+          cpp
+        ];
+      };
       treesitter-context.enable = false;
       # Project management
       project-nvim.enable = true;
@@ -181,7 +187,14 @@
           ts_ls.enable = true;
           html.enable = true;
           cssls.enable = true;
-          clangd.enable = true;
+          clangd = {
+        enable = true;
+        cmd = [
+          "clangd"
+          "--background-index"
+          "--clang-tidy"
+        ];
+      };
           zls.enable = false;
           marksman.enable = false;
           hyprls.enable = true;
@@ -202,6 +215,8 @@
           formatters_by_ft = {
             nix = [ "alejandra" ];
             lua = [ "stylua" ];
+            c = [ "clang-format" ];
+            cpp = [ "clang-format" ];
             javascript = [ "prettierd" ];
             typescript = [ "prettierd" ];
             javascriptreact = [ "prettierd" ];
@@ -342,7 +357,6 @@
       pyright
       lua-language-server
       zls
-      #marksman
       multimarkdown
       clang-tools
       prettierd

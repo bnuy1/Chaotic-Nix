@@ -1,21 +1,21 @@
 { pkgs, ... }:
 
 {
+  custom.allowUnfreePackages = [
+    "spotify"
+  ];
+
   environment.systemPackages = with pkgs; [
     # Development
     nodejs
-    ollama
-    opencode
+    opencv
+    cmake
+    gnumake
+    pkg-config
 
     plymouth
     hyprsunset
     wireguard-tools
-    # Fish
-    fishPlugins.done
-    fishPlugins.grc
-    fishPlugins.sponge
-    fishPlugins.autopair
-    fishPlugins.pure
     # System Font
     iosevka
     # System utils
@@ -34,6 +34,9 @@
     brightnessctl
     blueman
     # Gui
+    orca-slicer
+    prusa-slicer
+    spotify
     dunst
     jellyfin
     jellyfin-desktop

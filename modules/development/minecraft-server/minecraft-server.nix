@@ -418,7 +418,10 @@ in
   # (the ensureUsers above only creates @localhost with unix_socket auth)
   systemd.services.mysql-create-fish-user = {
     description = "Create fish_admin MySQL user for Docker subnet";
-    after = [ "mysql.service" "sops-nix.service" ];
+    after = [
+      "mysql.service"
+      "sops-nix.service"
+    ];
     requires = [ "mysql.service" ];
     wantedBy = [ "multi-user.target" ];
 
@@ -479,57 +482,58 @@ in
       RemainAfterExit = true;
     };
   };
+  /*
+    systemd.services.mc-watchdog = {
+      description = "Minecraft Server Watchdog";
 
-  systemd.services.mc-watchdog = {
-    description = "Minecraft Server Watchdog";
+      # Add all required binaries to the service path
+      path = [
+        pkgs.docker
+        pkgs.systemd
+        pkgs.util-linux # wall
+        pkgs.gnugrep # grep
+        pkgs.coreutils # echo
+      ];
 
-    # Add all required binaries to the service path
-    path = [
-      pkgs.docker
-      pkgs.systemd
-      pkgs.util-linux # wall
-      pkgs.gnugrep # grep
-      pkgs.coreutils # echo
-    ];
+      script = ''
+              check_mc_server() {
+                local container_name=$1
+                local service_name="docker-$1"
+                local port=$2
 
-    script = ''
-            check_mc_server() {
-              local container_name=$1
-              local service_name="docker-$1"
-              local port=$2
+                echo "Checking $container_name..."
 
-              echo "Checking $container_name..."
-      	
-      	# Checks if the docker container exists.
-              if ! docker ps --format '{{.Names}}' | grep -q "^$container_name$"; then
-                echo "WATCHDOG: $container_name is STOPPED."
-                wall "WATCHDOG: $container_name is STOPPED."
-                #systemctl start "$service_name"
-                return
-              fi
-            }
+        	# Checks if the docker container exists.
+                if ! docker ps --format '{{.Names}}' | grep -q "^$container_name$"; then
+                  echo "WATCHDOG: $container_name is STOPPED."
+                  wall "WATCHDOG: $container_name is STOPPED."
+                  #systemctl start "$service_name"
+                  return
+                fi
+              }
 
-            check_mc_server "minecraft-survival" 25565
-            check_mc_server "minecraft-lab" 25565
-            check_mc_server "minecraft-creative" 25565
-            #check_mc_server "minecraft-raina" 25565
-            exit 0
-    '';
+              check_mc_server "minecraft-survival" 25565
+              check_mc_server "minecraft-lab" 25565
+              check_mc_server "minecraft-creative" 25565
+              #check_mc_server "minecraft-raina" 25565
+              exit 0
+      '';
 
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root";
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+      };
     };
-  };
 
-  # Watchdog timer that activates minecraft watchdog (above)
-  systemd.timers.mc-watchdog = {
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnBootSec = "3m"; # Give the server 3 mins to start up before yelling
-      OnUnitActiveSec = "1m"; # Run every 1 minute
+    # Watchdog timer that activates minecraft watchdog (above)
+    systemd.timers.mc-watchdog = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnBootSec = "3m"; # Give the server 3 mins to start up before yelling
+        OnUnitActiveSec = "1m"; # Run every 1 minute
+      };
     };
-  };
+  */
   systemd.services."docker-minecraft-survival" = {
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
@@ -897,13 +901,5 @@ in
       iptables -A INPUT -i br-+ -p tcp --dport 3306 -j ACCEPT
     '';
 
-  };
-  services.fail2ban = {
-    enable = true;
-    maxretry = 7;
-    ignoreIP = [
-      "127.0.0.1/8"
-      "192.168.0.0/24"
-    ]; # local network
   };
 }

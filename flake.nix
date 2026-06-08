@@ -36,13 +36,6 @@
         nixpkgs.lib.filterAttrs (name: type: type == "directory") allHostFolders
       );
 
-      # This is the networking name of your computer, and if the name matches with any of the hosts inside of the hostDir it will actually pick out a configuration that is premade
-      # otherwise it falls back to the default config
-      #
-      # this can be anything, but will have special behavier when matched with a config inside of the hosts dir.
-      # For the exaustive list of special strings, look there!
-      primaryHost = "antimatter";
-
       # The HOST generator/ logic for finding which machine to build
       mkHost =
         networkingHostname:
@@ -84,14 +77,12 @@
     in
     {
       # OUTPUTS
-      # Generates nixosConfigurations for all known folders
-      nixosConfigurations = (nixpkgs.lib.genAttrs myHosts mkHost) // {
-        # This line ensures targeting '#default' builds the primaryHost
-        default = mkHost primaryHost;
-
-        # If you want to allow a specific arbitrary string manually via CLI:
-        # e.g., sudo nixos-rebuild switch --flake .#someArbitraryName
-        # "someArbitraryName" = mkHost "someArbitraryName";
-      };
+      # Generates nixosConfigurations for all known host folders.
+      # Build a specific host with: sudo nixos-rebuild switch --flake .#hostname
+      # Falls back to 'hosts/default/' if the hostname doesn't match a folder.
+      nixosConfigurations = builtins.listToAttrs (map (name: {
+        inherit name;
+        value = mkHost name;
+      }) myHosts);
     };
 }

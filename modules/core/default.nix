@@ -12,5 +12,7 @@
     ./steam.nix
     ./quickshell.nix
     ./printing.nix
+    ./swap.nix
+    ./power-management.nix
   ];
 }
