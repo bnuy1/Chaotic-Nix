@@ -1,3 +1,8 @@
 modules/development/minecraft-server/secrets.yaml.BACKUP
 modules/result/
 
+age_key.txt
+
+# Stale/backup nix files
+*.save
+

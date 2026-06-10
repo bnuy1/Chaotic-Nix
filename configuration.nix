@@ -11,7 +11,8 @@
   imports = [
     ./modules/core
     ./hosts/${host}
-  ] ++ lib.optional (builtins.pathExists ./modules/development/t440p/t4.nix) ./modules/development/t440p/t4.nix;
+  ]
+  ++ lib.optional (builtins.pathExists ./modules/development/t440p/t4.nix) ./modules/development/t440p/t4.nix;
 
   nix.settings.experimental-features = [
     "nix-command"

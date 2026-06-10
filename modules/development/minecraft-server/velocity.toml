@@ -7,7 +7,7 @@ forwarding-secret-file = "forwarding.secret"
 # their server list. Only MiniMessage format is accepted.
 motd = "Bnuyhole :3"
 forced-hosts = {}
-config-version = "2.7"
+config-version = "2.8"
 #Should the proxy enforce the new public key security standard? By default, this is on.
 force-key-authentication = true
 player-info-forwarding-mode = "modern"
@@ -89,3 +89,16 @@ player-info-forwarding-mode = "modern"
 	map = "Velocity"
 	# Whether plugins should be shown in query response by default or not
 	show-plugins = false
+
+[packet-limiter]
+	#Size of the moving time window in seconds used to calculate average rates.
+	#A larger window tolerates short bursts while still enforcing the configured limits over time.
+	interval = 7
+	#Maximum average number of packets per second a client may send. -1 disables this check.
+	packets-per-second = -1
+	#Maximum average number of compressed (on-wire) bytes per second a client may send. -1 disables this check.
+	bytes-per-second = -1
+	#Maximum average number of decompressed bytes per second a client may send.
+	#Protects against compression bomb attacks where small packets expand to excessive sizes after decompression.
+	#-1 disables this check.
+	decompressed-bytes-per-second = 5242880

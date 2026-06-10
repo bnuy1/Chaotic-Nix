@@ -17,7 +17,16 @@ in
     hardware.cpu.intel.updateMicrocode =
       lib.mkDefault config.hardware.enableRedistributableFirmware;
 
-    boot.kernelModules = [ "ath12k_pci" "kvm-intel" ];
+    boot.kernelModules = [
+      "ath12k"
+      "iwlwifi"
+      "kvm-intel"
+      "usbnet"
+      "rndis_host"
+      "cdc_ether"
+      "cdc_subset"
+    ];
+    boot.kernelParams = [ ];
 
     boot.initrd.availableKernelModules = [
       "xhci_pci" "ahci" "nvme" "usbhid" "usb_storage" "sd_mod"
