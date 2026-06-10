@@ -40,6 +40,9 @@
     grc
     # terminal ding sound
     libcanberra-gtk3
+    nh
+    nix-index
+    nvd
     #fish plugins are downloaded in the host files
   ];
 
@@ -61,7 +64,7 @@
 
     shellAliases = {
       ls = "ls --color";
-      nrs = "sudo nixos-rebuild switch";
+      nrs = "nh os switch";
       nnix = "sudo nvim /etc/nixos";
       gfnix = "kitten ssh mal@fuck.wyfi.top -p 49357";
       gf = "kitten ssh malachy@fuck.wyfi.top -p 28740";

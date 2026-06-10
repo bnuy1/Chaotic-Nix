@@ -43,6 +43,16 @@
     variant = vars.keyboardVariant;
   };
 
+  # Gaming optimizations
+  programs.gamemode.enable = true;
+  programs.gamescope.enable = true;
+  hardware.opengl = {
+    extraPackages = with pkgs; [ mangohud ];
+    extraPackages32 = with pkgs; [ mangohud ];
+  };
+  # SSD trimming (safe: only issues TRIM to devices that support it)
+  services.fstrim.enable = true;
+
   programs.fish.enable = true;
 
   programs.nix-ld.enable = true;
@@ -62,6 +72,9 @@
       origin_web_ui_allowed = "wan";
     };
   };
+
+  # Keep only 30 generations in GRUB to prevent /boot overflow
+  boot.loader.grub.configurationLimit = 30;
 
   # List packages installed in system profile. To search, run:
   # $ nix search wget

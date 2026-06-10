@@ -132,7 +132,7 @@ in
             enable = true;
             shellAliases = {
               ls = "ls -a --color";
-              nrs = "sudo nixos-rebuild switch --flake .";
+              nrs = "nh os switch";
             };
           };
 

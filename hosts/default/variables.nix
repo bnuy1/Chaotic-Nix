@@ -7,9 +7,9 @@
 
   # Git Configuration ( For Pulling Software Repos )
   gitUsername = "Ha2k4r";
-  gitEmail = "enigma558@proton.me";
+  gitEmail = "bnuy@bnuy.dev";
   Secondary-User_gitUsername = "Indigo-69";
-  Secondary-User_gitEmail = "wyfi08g@proton.me";
+  Secondary-User_gitEmail = "wyfi08g@users.noreply.github.com";
 
   # Set Display Manager
   # `tui` for Text login

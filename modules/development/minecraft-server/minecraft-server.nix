@@ -388,7 +388,7 @@ in
         ${pkgs.rsync}/bin/rsync -avz --delete --partial --timeout=60 --bwlimit=5000 \
           -e "${pkgs.openssh}/bin/ssh -p 5432 -o StrictHostKeyChecking=accept-new" \
           /var/backups/minecraft/ \
-          fur3@70.22.183.131:/var/backups/remote/
+          fur3@mcbackup.bnuy.dev:/var/backups/remote/
       '';
     };
   };

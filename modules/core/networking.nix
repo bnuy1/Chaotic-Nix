@@ -1,4 +1,9 @@
-{ pkgs, ... }:
+{
+  pkgs,
+  vars,
+  lib,
+  ...
+}:
 
 {
   # Disable wait-online service for faster boot
