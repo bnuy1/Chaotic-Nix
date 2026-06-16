@@ -1,10 +1,12 @@
-{ ... }: {
-  imports = [
-    ./common-user-packages.nix
-    ./kitty.nix
-    ./hyprland
-    ./stylix.nix
-    ./noctalia.nix
-    # Home Manager imports Nixvim uniquely
-  ];
+{ vars, lib, ... }: {
+  imports =
+    [
+      ./common-user-packages.nix
+      ./kitty.nix
+      ./stylix.nix
+    ]
+    ++ lib.optionals (vars.displayManager == "sddm") [
+      ./hyprland
+      ./noctalia.nix
+    ];
 }

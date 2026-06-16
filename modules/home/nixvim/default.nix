@@ -13,6 +13,7 @@
     enable = true;
     viAlias = true;
     vimAlias = true;
+    nixpkgs.source = inputs.nixpkgs;
     globals = {
       mapleader = " ";
       maplocalleader = " ";
@@ -137,8 +138,8 @@
       fd
       clang-tools
       nil
-      nodePackages.typescript-language-server
-      nodePackages.typescript
+      typescript-language-server
+      typescript
       vscode-langservers-extracted
       pyright
       lua-language-server

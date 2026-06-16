@@ -14,8 +14,8 @@
     # Garbage collection
     nix.gc = {
       automatic = true;
-      dates = "weekly";
-      options = "--delete-older-than 30d";
+      dates = vars.gcPeriod or "weekly";
+      options = vars.gcOptions or "--delete-older-than 30d";
     };
 
     # Set your time zone.
@@ -59,7 +59,7 @@
     system.autoUpgrade = {
       enable = true;
       dates = "weekly";
-      allowReboot = false;
+      allowReboot = vars.autoUpgradeAllowReboot or false;
     };
 
     # Nix settings

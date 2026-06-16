@@ -1,7 +1,15 @@
-{ pkgs, ... }:
+{ pkgs, vars, ... }:
+let
+  kernelOption = vars.kernel or "zen";
+  kernelMap = {
+    zen = pkgs.linuxPackages_zen;
+    xanmod = pkgs.linuxPackages_xanmod;
+    stable = pkgs.linuxPackages;
+    lts = pkgs.linuxPackages_6_6;
+  };
+in
 {
-  # Zen kernal for bleeding edge speeeeed
-  boot.kernelPackages = pkgs.linuxPackages_zen;
+  boot.kernelPackages = kernelMap.${kernelOption};
   boot.loader = {
     efi.canTouchEfiVariables = true;
     grub = {

@@ -1,41 +1,30 @@
 {
-  Primary-User = "fur3";
-  Secondary-User = "raina";
+  kernel = "zen";
+
+  users = [
+    {
+      name = "fur3";
+      description = "Mal";
+      gitUsername = "bnuy1";
+      gitEmail = "bnuy@bnuy.dev";
+    }
+    {
+      name = "raina";
+      gitUsername = "Indigo-69";
+      gitEmail = "wyfi08g@users.noreply.github.com";
+    }
+  ];
 
   # Used by stylix
   defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
 
-  # Git Configuration ( For Pulling Software Repos )
-  gitUsername = "bnuy1";
-  gitEmail = "bnuy@bnuy.dev";
-  Secondary-User_gitUsername = "Indigo-69";
-  Secondary-User_gitEmail = "wyfi08g@users.noreply.github.com";
-
   # Set Display Manager
-  # `tui` for Text login
+  # `tui` for Text login and no graphical system
   # `sddm` for graphical GUI (default)
   displayManager = "sddm";
 
-  # Enable/disable bundled applications
-  tmuxEnable = false;
-  weztermEnable = false;
-  ghosttyEnable = false;
-  # Note: This is evil-helix with VIM keybindings by default
-  helixEnable = false;
-  # To install: Enable here, zcli rebuild, then run zcli doom install
-  doomEmacsEnable = false;
-
-  # Hyprland Settings
-  # Examples:
-  # extraMonitorSettings = "monitor = Virtual-1,1920x1080@60,auto,1";
-  # extraMonitorSettings = "monitor = HDMI-A-1,1920x1080@60,auto,1";
-  # You can configure multiple monitors.
-  # Inside the quotes, create a new line for each monitor.
-  extraMonitorSettings = "";
-
-  # Waybar Settings (used when barChoice = "waybar")
   clock24h = false;
-
+  # firefox, librewolf whatever else you prefer.
   browser = "librewolf";
 
   suspendEnable = true;
@@ -54,6 +43,26 @@
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager
   thunarEnable = false;
+
+  # Auto-upgrade: never auto-reboot a running system
+  autoUpgradeAllowReboot = false;
+
+  # Garbage collection (more aggressive for unattended)
+  gcPeriod = "weekly";
+  gcOptions = "--delete-older-than 30d";
+
+  # Virtualisation / containers
+  dockerEnable = true;
+  podmanEnable = false;
+  libvirtdEnable = true;
+  virt-managerEnable = false;
+
+  # Gaming / streaming
+  steamEnable = true;
+  sunshineEnable = true;
+
+  # Default editor
+  editor = "nvim";
 
   timeZone = "America/New_York";
 }

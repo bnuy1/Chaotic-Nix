@@ -21,6 +21,11 @@
 
     stylix.url = "github:danth/stylix";
 
+    xwaylandvideobridge = {
+      url = "git+https://invent.kde.org/system/xwaylandvideobridge";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     # SOPS secrets manager (for development) so.. its not required if you recieved this file from a friend.
     sops-nix.url = "github:Mic92/sops-nix";
   };
@@ -28,6 +33,11 @@
   outputs =
     { self, nixpkgs, ... }@inputs:
     let
+      # Manual override: set to a host folder name (e.g. "singularity") to force
+      # ALL nixosConfigurations to use that host's config regardless of the flake
+      # attribute name or the machine's hostname. Set to null for normal behavior.
+      manualHostname = null;
+
       hostDir = ./hosts;
       allHostFolders = builtins.readDir hostDir;
 
@@ -40,12 +50,16 @@
       mkHost =
         networkingHostname:
         let
-          # Check if a folder name matches the "PrimaryHost" arbitrary name
-          specificPath = hostDir + "/${networkingHostname}";
+          # When manualHostname is set, it overrides the host folder selection
+          # for all configurations. This lets you force a specific host setup
+          # regardless of what --flake .#name or the machine's hostname says.
+          folderBase = if manualHostname != null then manualHostname else networkingHostname;
+
+          # Check if a folder name matches, otherwise falls back on the Default host
+          specificPath = hostDir + "/${folderBase}";
           hasSpecificConfig = builtins.pathExists specificPath;
 
-          # The Logic to determine weather or not the hostname matches a known host in hostdir otherwise falls back on the Default host
-          matchedHost = if hasSpecificConfig then networkingHostname else "default";
+          matchedHost = if hasSpecificConfig then folderBase else "default";
           matchedPath = hostDir + "/${matchedHost}";
         in
         nixpkgs.lib.nixosSystem {
@@ -63,7 +77,6 @@
             ./configuration.nix
             inputs.home-manager.nixosModules.home-manager
             inputs.stylix.nixosModules.stylix
-            inputs.noctalia.nixosModules.default
             inputs.sops-nix.nixosModules.sops
             # THE ROUTER:
             # We already proved the path exists above, so we can just pass the matched path.
@@ -80,9 +93,11 @@
       # Generates nixosConfigurations for all known host folders.
       # Build a specific host with: sudo nixos-rebuild switch --flake .#hostname
       # Falls back to 'hosts/default/' if the hostname doesn't match a folder.
-      nixosConfigurations = builtins.listToAttrs (map (name: {
-        inherit name;
-        value = mkHost name;
-      }) myHosts);
+      nixosConfigurations = builtins.listToAttrs (
+        map (name: {
+          inherit name;
+          value = mkHost name;
+        }) myHosts
+      );
     };
 }

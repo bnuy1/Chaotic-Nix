@@ -30,12 +30,14 @@
   };
   services.resolved = {
     enable = true;
-    dnssec = "true";
-    domains = [ "~." ];
-    # Force all DNS traffic to be encrypted using TLS
-    #dnsovertls = "true";
-    # Use TLS when possible, but fallback to unencrypted
-    dnsovertls = "opportunistic";
+    settings = {
+      Resolve = {
+        DNSSEC = "true";
+        Domains = [ "~." ];
+        # Force all DNS traffic to be encrypted using TLS
+        DNSOverTLS = "opportunistic";
+      };
+    };
   };
 
   hardware.bluetooth = {
@@ -77,7 +79,7 @@
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
-      AllowUsers = [ vars.Primary-User ] ++ lib.optionals (vars ? Secondary-User) [ vars.Secondary-User ];
+      AllowUsers = map (user: user.name) vars.users;
       MaxAuthTries = 3;
       MaxSessions = 4;
       ClientAliveInterval = 300;

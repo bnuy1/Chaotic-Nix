@@ -5,7 +5,7 @@
   home.packages = with pkgs; [
     kdePackages.kate
     alvr
-    swww
+    awww
     hyprpolkitagent
     krita
     gzip

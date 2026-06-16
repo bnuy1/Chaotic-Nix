@@ -11,8 +11,7 @@
   imports = [
     ./modules/core
     ./hosts/${host}
-  ]
-  ++ lib.optional (builtins.pathExists ./modules/development/t440p/t4.nix) ./modules/development/t440p/t4.nix;
+  ];
 
   nix.settings.experimental-features = [
     "nix-command"
@@ -27,15 +26,15 @@
     linux-firmware
   ];
 
-  networking.hostName = networkingHostname; # Define your hostname.
+  networking.hostName = networkingHostname;
 
-  # Enable the X11 windowing system.
-  services.xserver.enable = true;
-  services.displayManager.sddm.enable = true;
+  # Enable the X11 windowing system and related services only for graphical hosts.
+  services.xserver.enable = vars.displayManager == "sddm";
+  services.displayManager.sddm.enable = vars.displayManager == "sddm";
 
   #XDG_CURRENT_DESKTOP=GNOME element-desktop
-  services.gnome.gnome-keyring.enable = true;
-  security.pam.services.hyprland.enableGnomeKeyring = true;
+  services.gnome.gnome-keyring.enable = vars.displayManager == "sddm";
+  security.pam.services.hyprland.enableGnomeKeyring = vars.displayManager == "sddm";
 
   # Configure keymap in X11
   services.xserver.xkb = {
@@ -44,9 +43,8 @@
   };
 
   # Gaming optimizations
-  programs.gamemode.enable = true;
-  programs.gamescope.enable = true;
-  hardware.opengl = {
+  programs.gamemode.enable = vars.displayManager == "sddm";
+  hardware.graphics = lib.mkIf (vars.displayManager == "sddm") {
     extraPackages = with pkgs; [ mangohud ];
     extraPackages32 = with pkgs; [ mangohud ];
   };
@@ -56,12 +54,11 @@
   programs.fish.enable = true;
 
   programs.nix-ld.enable = true;
-  programs.command-not-found.enable = true;
 
-  environment.sessionVariables.NIXOS_OZONE_WL = "1";
+  environment.sessionVariables.NIXOS_OZONE_WL = lib.mkIf (vars.displayManager == "sddm") "1";
 
   services.sunshine = {
-    enable = true;
+    enable = vars.sunshineEnable or false;
     autoStart = true;
     capSysAdmin = true;
     openFirewall = true;
@@ -88,5 +85,8 @@
   # this value at the release version of the first install of this system.
   # Before changing this value read the documentation for this option
   # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
+  # File manager: Dolphin (default) or Thunar
+  programs.thunar.enable = vars.thunarEnable or false;
+
   system.stateVersion = "25.11";
 }

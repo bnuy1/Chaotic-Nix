@@ -1,16 +1,11 @@
 {
-  kernel = "stable";
+  kernel = "xanmod";
 
   users = [
     {
       name = "fur3";
       gitUsername = "Ha2k4r";
       gitEmail = "bnuy@bnuy.dev";
-    }
-    {
-      name = "raina";
-      gitUsername = "Indigo-69";
-      gitEmail = "wyfi08g@users.noreply.github.com";
     }
   ];
 
@@ -20,10 +15,10 @@
   # Set Display Manager
   # `tui` for Text login
   # `sddm` for graphical GUI (default)
-  displayManager = "sddm";
+  displayManager = null;
 
   # Enable/disable bundled applications
-  tmuxEnable = false;
+  tmuxEnable = true;
   weztermEnable = false;
   ghosttyEnable = false;
   # Note: This is evil-helix with VIM keybindings by default
@@ -40,11 +35,11 @@
   extraMonitorSettings = "";
 
   # Waybar Settings (used when barChoice = "waybar")
-  clock24h = false;
+  clock24h = true;
 
-  browser = "firefox";
+  browser = null;
 
-  suspendEnable = true;
+  suspendEnable = false;
   hibernateEnable = false;
 
   keyboardLayout = "us";
@@ -55,7 +50,7 @@
   enableNFS = true;
 
   # Enable Printing Support
-  printEnable = true;
+  printEnable = false;
 
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager
@@ -66,7 +61,7 @@
 
   # Garbage collection (more aggressive for unattended)
   gcPeriod = "daily";
-  gcOptions = "--delete-older-than 7d";
+  gcOptions = "--keep-generations 12";
 
   # Virtualisation / containers
   dockerEnable = true;

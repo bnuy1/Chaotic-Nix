@@ -14,5 +14,6 @@
     ./printing.nix
     ./swap.nix
     ./power-management.nix
+    ./xwaylandvideobridge
   ];
 }

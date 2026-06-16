@@ -1,11 +1,11 @@
-{ ... }:
+{ vars, ... }:
 
 {
   imports = [
     ./xdg-desktop-portal.nix
   ];
   wayland.windowManager.hyprland = {
-    enable = true;
+    enable = vars.displayManager == "sddm";
     xwayland.enable = true;
 
     # tells Home Manager to use the config file (that systemlinks everything together)

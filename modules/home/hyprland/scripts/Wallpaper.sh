@@ -11,14 +11,14 @@ wallpaper=$(find "$LOCATION" -type f \( -iname "*.jpg" -o -iname "*.png" -o -ina
 
 echo "Selected wallpaper: $wallpaper"
 
-# Start swww-daemon if not already running
-if ! pgrep -x "swww-daemon" > /dev/null; then
-    swww-daemon &
-    sleep 0.5   # give daemon time to start
+# Start awww-daemon if not already running
+if ! pgrep -x "awww-daemon" >/dev/null; then
+  awww-daemon &
+  sleep 0.5 # give daemon time to start
 fi
 
 # Set the wallpaper
-swww img "$wallpaper"
+awww img "$wallpaper"
 
 # Generate colors with pywal
 wal -i $wallpaper

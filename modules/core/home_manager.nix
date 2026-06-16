@@ -1,151 +1,132 @@
-{
-  pkgs,
-  host,
-  inputs,
-  lib,
-  ...
-}:
+{ pkgs, host, inputs, lib, ... }:
 
 let
   vars = import ../../hosts/${host}/variables.nix;
   hmLib = inputs.home-manager.lib;
-in
-{
-  users.users = {
-    ${vars.Primary-User} = {
-      isNormalUser = true;
-      description = "Primary User";
-      extraGroups = [
-        "networkmanager"
-        "wheel"
-      ];
-      shell = pkgs.fish;
+
+  primaryUserName = (builtins.head vars.users).name;
+
+  userExtraConfig = {
+    fur3 = {
       openssh.authorizedKeys.keys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICDpAOcERg7AdXnDJrEjars/3dUPzVpIhYCYufTExq+m enigma558@proton.me"
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAX35vvNbcI+GZDoPeRBf/418a2GRg4M+JuL5rFUTvXS mal@missNectarine"
       ];
+      shell = pkgs.fish;
     };
-  } // lib.optionalAttrs (vars ? Secondary-User) {
-    ${vars.Secondary-User} = {
-      isNormalUser = true;
-      description = "Secondary User";
-      extraGroups = [
-        "networkmanager"
-        "wheel"
-      ];
-      shell = pkgs.bash;
+    raina = {
       openssh.authorizedKeys.keys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINYmpDO0d8/WMd1FAbvBuZ6TEUoQ/ycJrMm+XRn+RIne raina@Arch"
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIbi7shzgg3q+mfHDcjPiSu1aklccEy8Wwh78SAsqWd8 raina@dyingStar"
       ];
+      shell = pkgs.bash;
     };
   };
+
+  isPrimary = user: user.name == primaryUserName;
+
+  buildUserConfig = user: {
+    isNormalUser = true;
+    description = if isPrimary user then "Primary User" else "Secondary User";
+    extraGroups = [ "networkmanager" "wheel" ];
+  } // (userExtraConfig.${user.name} or {});
+in
+{
+  users.users = builtins.listToAttrs (map (user: {
+    name = user.name;
+    value = buildUserConfig user;
+  }) vars.users);
 
   ###### Home Manager Configuration #######
   home-manager = {
     useUserPackages = true;
     useGlobalPkgs = true;
     backupFileExtension = "backup";
-    # passes inputs (containing nixvim) to the users files
     extraSpecialArgs = { inherit inputs host vars; };
 
-    users = {
-      # Configuration for the Primary User of the system
-      ${vars.Primary-User} =
-        { pkgs, ... }:
-        {
-          # A broken, nonworking attempt to make wallpapers accross userspace
-          home.activation.copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
-            TARGET_DIR="/home/${vars.Primary-User}/Pictures/wallpapers"
-            SRC_PATH="${../../assets/wallpapers}"
-
-            # murder the previous wallpapers
-            /run/current-system/sw/bin/rm -rf "$TARGET_DIR" || true
-            /run/current-system/sw/bin/mkdir -p "$TARGET_DIR"
-
-            if [ -d "$SRC_PATH" ]; then
-              /run/current-system/sw/bin/cp -rfL "$SRC_PATH"/. "$TARGET_DIR/" || true
-            fi
-
-            #  Owner can do everything, others nothing
-            /run/current-system/sw/bin/chmod 0700 "$TARGET_DIR" || true
-            /run/current-system/sw/bin/find "$TARGET_DIR" -type f -exec /run/current-system/sw/bin/chmod 0600 {} + || true
-          '';
-          home.username = "${vars.Primary-User}";
-          home.homeDirectory = "/home/${vars.Primary-User}";
+    users = builtins.listToAttrs (map (user:
+      let
+        primary = isPrimary user;
+        extraPkgs = with pkgs; lib.optionals (!primary) [
+          hyfetch
+          fastfetch
+          fd
+          gcc
+        ];
+      in
+      {
+        name = user.name;
+        value = { pkgs, ... }: {
+          home.username = user.name;
+          home.homeDirectory = "/home/${user.name}";
           home.stateVersion = "25.11";
-          home.sessionVariables = {
-            EDITOR = "nvim";
-            VISUAL = "nvim";
-            SUDO_EDITOR = "nvim";
+
+          home.sessionVariables = lib.optionalAttrs primary {
+            EDITOR = vars.editor or "nvim";
+            VISUAL = vars.editor or "nvim";
+            SUDO_EDITOR = vars.editor or "nvim";
+            BROWSER = vars.browser or "librewolf";
           };
+
           imports = [
             ../home
-            # Dynamic import of ../home/nixvim/username.nix
             (let
-              # test if it exists
-              userFileExists = builtins.pathExists ../home/nixvim/${vars.Primary-User}.nix;
-              # find the filename string as potentially "default"
-              fileName = if userFileExists then vars.Primary-User else "default";
+              userFileExists = builtins.pathExists ../home/nixvim/${user.name}.nix;
+              fileName = if userFileExists then user.name else "default";
             in
             ../home/nixvim/${fileName}.nix)
           ];
 
-          home.packages = with pkgs; [
-          ];
+          home.packages = extraPkgs;
+
+          home.activation = lib.optionalAttrs primary {
+            copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
+              TARGET_DIR="/home/${user.name}/Pictures/wallpapers"
+              SRC_PATH="${../../assets/wallpapers}"
+
+              /run/current-system/sw/bin/rm -rf "$TARGET_DIR" || true
+              /run/current-system/sw/bin/mkdir -p "$TARGET_DIR"
+
+              if [ -d "$SRC_PATH" ]; then
+                /run/current-system/sw/bin/cp -rfL "$SRC_PATH"/. "$TARGET_DIR/" || true
+              fi
+
+              /run/current-system/sw/bin/chmod 0700 "$TARGET_DIR" || true
+              /run/current-system/sw/bin/find "$TARGET_DIR" -type f -exec /run/current-system/sw/bin/chmod 0600 {} + || true
+            '';
+          };
+
           programs.git = {
             enable = true;
             settings = {
               user = {
-                name = "${vars.gitUsername}";
-                email = "${vars.gitEmail}";
+                name = "${user.gitUsername}";
+                email = "${user.gitEmail}";
               };
             };
           };
-        };
-    } // lib.optionalAttrs (vars ? Secondary-User) {
-      # Secondary User
-      ${vars.Secondary-User} =
-        { pkgs, ... }:
-        {
-          home.username = "${vars.Secondary-User}";
-          home.homeDirectory = "/home/${vars.Secondary-User}";
-          home.stateVersion = "25.11";
 
-          imports = [
-            ../home
-            (let
-              userFileExists = builtins.pathExists ../home/nixvim/${vars.Secondary-User}.nix;
-              fileName = if userFileExists then vars.Secondary-User else "default";
-            in
-            ../home/nixvim/${fileName}.nix)
-          ];
+          programs.tmux = lib.mkIf primary {
+            enable = vars.tmuxEnable or false;
+          };
+          programs.wezterm = lib.mkIf primary {
+            enable = vars.weztermEnable or false;
+          };
+          programs.ghostty = lib.mkIf primary {
+            enable = vars.ghosttyEnable or false;
+          };
+          programs.helix = lib.mkIf primary {
+            enable = vars.helixEnable or false;
+          };
 
-          home.packages = with pkgs; [
-            hyfetch
-            fastfetch
-            fd
-            gcc
-          ];
-
-          programs.bash = {
+          programs.bash = lib.mkIf (!primary) {
             enable = true;
             shellAliases = {
               ls = "ls -a --color";
               nrs = "nh os switch";
             };
           };
-
-          programs.git = {
-            enable = true;
-            settings = {
-              user = {
-                name = "${vars.Secondary-User_gitUsername}";
-                email = "${vars.Secondary-User_gitEmail}";
-              };
-            };
-          };
         };
-    };
+      }) vars.users);
   };
 }

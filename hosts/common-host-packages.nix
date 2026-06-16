@@ -19,6 +19,7 @@
     # System Font
     iosevka
     # System utils
+    awww
     zip
     unzip
     ripgrep

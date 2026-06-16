@@ -1,8 +1,8 @@
-{ pkgs, lib, ... }:
+{ pkgs, lib, vars, ... }:
 {
   programs = {
     steam = {
-      enable = true;
+      enable = vars.steamEnable or false;
       remotePlay.openFirewall = true;
       dedicatedServer.openFirewall = false;
       gamescopeSession.enable = true;
@@ -10,7 +10,7 @@
     };
 
     gamescope = {
-      enable = true;
+      enable = vars.steamEnable or false;
       capSysNice = true;
       args = [
         "--rt"
@@ -19,7 +19,7 @@
     };
   };
 
-  custom.allowUnfreePackages = [
+  custom.allowUnfreePackages = lib.optionals (vars.steamEnable or false) [
     "steam"
     "steam-original"
     "steam-unwrapped"

@@ -16,8 +16,10 @@
     config.common.default = [ "hyprland" "gtk" ];
   };
 
-  # Set WAYLAND_DISPLAY for the hyprland portal user service
-  systemd.user.services."xdg-desktop-portal-hyprland".serviceConfig = {
-    Environment = "WAYLAND_DISPLAY=wayland-0";
+  # Ensure the hyprland portal backend gets the right display
+  systemd.user.services."xdg-desktop-portal-hyprland" = {
+    Service = {
+      Environment = "WAYLAND_DISPLAY=wayland-1";
+    };
   };
 }

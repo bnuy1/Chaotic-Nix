@@ -1,12 +1,16 @@
 {
-  Primary-User = "fur3";
+  kernel = "xanmod";
+
+  users = [
+    {
+      name = "fur3";
+      gitUsername = "Ha2k4r";
+      gitEmail = "bnuy@bnuy.dev";
+    }
+  ];
 
   # Used by stylix
   defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
-
-  # Git Configuration ( For Pulling Software Repos )
-  gitUsername = "Ha2k4r";
-  gitEmail = "bnuy@bnuy.dev";
 
   # Set Display Manager
   # `tui` for Text login
@@ -46,11 +50,31 @@
   enableNFS = false;
 
   # Enable Printing Support
-  printEnable = false;
+  printEnable = true;
 
   # Enable Thunar GUI File Manager
   # Dolphin is default File Manager
   thunarEnable = false;
+
+  # Auto-upgrade: never auto-reboot a running system
+  autoUpgradeAllowReboot = false;
+
+  # Garbage collection (more aggressive for unattended)
+  gcPeriod = "weekly";
+  gcOptions = "--delete-older-than 30d";
+
+  # Virtualisation / containers
+  dockerEnable = false;
+  podmanEnable = false;
+  libvirtdEnable = false;
+  virt-managerEnable = false;
+
+  # Gaming / streaming
+  steamEnable = true;
+  sunshineEnable = false;
+
+  # Default editor
+  editor = "nvim";
 
   timeZone = "America/New_York";
 }

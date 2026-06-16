@@ -11,6 +11,7 @@
 
   programs.nixvim = {
     enable = true;
+    nixpkgs.source = inputs.nixpkgs;
     viAlias = true;
     vimAlias = true;
     globals = {
@@ -336,8 +337,8 @@
       lazygit
       nil
       hyprls
-      nodePackages.typescript-language-server
-      nodePackages.typescript
+      typescript-language-server
+      typescript
       vscode-langservers-extracted
       pyright
       lua-language-server
