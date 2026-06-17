@@ -1,5 +1,7 @@
 modules/development/minecraft-server/secrets.yaml.BACKUP
 modules/result/
+result/
+hosts/*/result/
 
 age_key.txt
 

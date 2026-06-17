@@ -13,15 +13,13 @@ in {
 
   config = mkIf cfg.enable {
     systemd.user.services.hyprpolkitagent = {
-      Unit = {
-        Description = "Hyprland PolicyKit Agent";
-        PartOf = [ config.wayland.systemd.target ];
-        After = [ config.wayland.systemd.target ];
+      description = "Hyprland PolicyKit Agent";
+      partOf = [ "graphical-session.target" ];
+      after = [ "graphical-session.target" ];
+      wantedBy = [ "graphical-session.target" ];
+      serviceConfig = {
+        ExecStart = "${cfg.package}/libexec/hyprpolkitagent";
       };
-
-      Install = { WantedBy = [ config.wayland.systemd.target ]; };
-
-      Service = { ExecStart = "${cfg.package}/libexec/hyprpolkitagent"; };
     };
   };
 }

@@ -7,6 +7,7 @@
   wayland.windowManager.hyprland = {
     enable = vars.displayManager == "sddm";
     xwayland.enable = true;
+    configType = "hyprlang";
 
     # tells Home Manager to use the config file (that systemlinks everything together)
     extraConfig = ''

@@ -45,6 +45,13 @@
     services.power-profiles-daemon.enable = true;
     services.upower.enable = true;
 
+    # File manager mounting support (USB drives, etc.)
+    services.gvfs.enable = true;
+    services.udisks2.enable = true;
+    security.polkit.enable = true;
+    boot.supportedFilesystems = [ "exfat" ];
+    boot.kernelModules = [ "exfat" ];
+
     # Kernel hardening
     security.lockKernelModules = true;
     security.protectKernelImage = true;
@@ -79,6 +86,11 @@
       ];
     };
     nix.optimise.automatic = true;
+
+    # System fonts
+    fonts.packages = with pkgs; [
+      iosevka
+    ];
 
     # Enable sound with pipewire.
     services.pulseaudio.enable = false;

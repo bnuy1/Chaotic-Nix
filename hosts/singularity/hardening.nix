@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ ... }:
 {
   boot.kernelParams = [
     "page_poison=1"

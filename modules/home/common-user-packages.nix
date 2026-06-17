@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, vars, ... }:
 
 {
   # Packages that will be downloaded and managed in each users unique home manager instance eg shared accross ALL system users (unless otherwise given a exception)
@@ -32,7 +32,11 @@
     htop
     librewolf
     kitty
-    vesktop
+    (pkgs.vesktop.overrideAttrs (old: {
+      postFixup = old.postFixup + ''
+        wrapProgram $out/bin/vesktop --add-flags "--enable-features=WebRTCPipeWireCapturer"
+      '';
+    }))
     prismlauncher
     signal-desktop
     lshw
@@ -44,7 +48,52 @@
     nix-index
     nvd
     #fish plugins are downloaded in the host files
+  ] ++ lib.optionals (!(vars.thunarEnable or false)) [
+    kdePackages.dolphin-plugins
   ];
+
+  xdg.configFile."mimeapps.list" = lib.mkIf (!(vars.thunarEnable or false)) {
+    text = ''
+      [Default Applications]
+      inode/directory=dolphin.desktop
+      text/plain=kate.desktop
+      text/html=librewolf.desktop
+      application/pdf=librewolf.desktop
+      image/png=krita.desktop
+      image/jpeg=krita.desktop
+      image/gif=krita.desktop
+      image/webp=krita.desktop
+      image/svg+xml=krita.desktop
+      video/*=vlc.desktop
+      audio/*=vlc.desktop
+      application/zip=file-roller.desktop
+      application/x-tar=file-roller.desktop
+      application/x-7z-compressed=file-roller.desktop
+      application/x-bzip=file-roller.desktop
+      application/x-gzip=file-roller.desktop
+      application/x-rar=file-roller.desktop
+      application/vnd.rar=file-roller.desktop
+      application/gzip=file-roller.desktop
+      application/x-xz=file-roller.desktop
+      application/vnd.openxmlformats-officedocument.wordprocessingml.document=libreoffice-writer.desktop
+      application/vnd.openxmlformats-officedocument.spreadsheetml.sheet=libreoffice-calc.desktop
+      application/vnd.openxmlformats-officedocument.presentationml.presentation=libreoffice-impress.desktop
+      application/msword=libreoffice-writer.desktop
+      application/vnd.ms-excel=libreoffice-calc.desktop
+      application/vnd.ms-powerpoint=libreoffice-impress.desktop
+      application/x-shellscript=kate.desktop
+      text/x-c=kate.desktop
+      text/x-c++=kate.desktop
+      text/x-python=kate.desktop
+      text/x-java=kate.desktop
+      text/xml=kate.desktop
+      text/x-json=kate.desktop
+      text/x-markdown=kate.desktop
+      text/x-nix=kate.desktop
+      text/x-yaml=kate.desktop
+      text/x-toml=kate.desktop
+    '';
+  };
 
   programs.fish = {
     enable = true;

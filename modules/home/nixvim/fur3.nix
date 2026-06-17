@@ -48,14 +48,7 @@
     plugins = {
       # UI and visuals
       web-devicons.enable = true;
-      lualine = {
-        enable = true;
-        settings = {
-          options = {
-            theme = "catppuccin";
-          };
-        };
-      };
+      lualine.enable = true;
       bufferline.enable = true;
       indent-blankline.enable = true;
       colorizer.enable = true;
@@ -202,10 +195,20 @@
           # hyprls is optional; keep tools available via extraPackages
         };
         keymaps = {
+          silent = true;
           diagnostic = {
             "<leader>dl" = "open_float";
             "[d" = "goto_prev";
             "]d" = "goto_next";
+          };
+          lspBuf = {
+            "K" = "hover";
+            "gd" = "definition";
+            "gD" = "declaration";
+            "gi" = "implementation";
+            "gr" = "references";
+            "<leader>rn" = "rename";
+            "<leader>ca" = "code_action";
           };
         };
       };
@@ -378,29 +381,6 @@
         underline = true,
         signs = true,
       })
-      -- Basic LSP keymaps when LSP attaches
-      local function lsp_on_attach(_, bufnr)
-        local map = function(mode, lhs, rhs, desc)
-          vim.keymap.set(mode, lhs, rhs, { buffer = bufnr, desc = desc })
-        end
-        map('n', 'K', vim.lsp.buf.hover, 'Hover docs')
-        map('n', 'gd', vim.lsp.buf.definition, 'Goto definition')
-        map('n', 'gD', vim.lsp.buf.declaration, 'Goto declaration')
-        map('n', 'gi', vim.lsp.buf.implementation, 'Goto implementation')
-        map('n', 'gr', vim.lsp.buf.references, 'References')
-        map('n', '<leader>rn', vim.lsp.buf.rename, 'Rename symbol')
-        map('n', '<leader>ca', vim.lsp.buf.code_action, 'Code action')
-      end
-      -- If nixvim exposes a hook, register it; otherwise set a global autocmd
-      if vim.g.__nixvim_lsp_attached ~= true then
-        vim.g.__nixvim_lsp_attached = true
-        vim.api.nvim_create_autocmd('LspAttach', {
-          callback = function(args)
-            local bufnr = args.buf
-            lsp_on_attach(nil, bufnr)
-          end,
-        })
-      end
       -- Notify background using Stylix palette
       local ok, notify = pcall(require, 'notify')
       if ok then

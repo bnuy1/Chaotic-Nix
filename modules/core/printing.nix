@@ -8,7 +8,7 @@
   services = {
     printing = {
       enable = vars.printEnable;
-      drivers = [ ];
+      drivers = with pkgs; lib.optionals vars.printEnable [ cnijfilter2 ];
     };
     avahi = {
       enable = vars.printEnable;

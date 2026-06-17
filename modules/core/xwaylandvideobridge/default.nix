@@ -15,7 +15,7 @@
 
   config = lib.mkIf config.programs.xwaylandvideobridge.enable {
     environment.systemPackages = [
-      inputs.xwaylandvideobridge.packages.${pkgs.system}.default
+      inputs.xwaylandvideobridge.packages.${pkgs.stdenv.hostPlatform.system}.default
     ];
   };
 }

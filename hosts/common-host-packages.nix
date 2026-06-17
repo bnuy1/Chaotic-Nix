@@ -15,9 +15,6 @@
 
     plymouth
     hyprsunset
-    wireguard-tools
-    # System Font
-    iosevka
     # System utils
     awww
     zip
@@ -34,6 +31,7 @@
     # You prob want this
     brightnessctl
     blueman
+    exfatprogs
     # Gui
     orca-slicer
     prusa-slicer
