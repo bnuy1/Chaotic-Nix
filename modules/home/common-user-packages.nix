@@ -1,5 +1,23 @@
 { config, pkgs, lib, vars, ... }:
 
+let
+  # browser pkg + desktop file per name
+  # null = none installed
+  browsers = {
+    librewolf  = { pkg = pkgs.librewolf;  desktop = "librewolf.desktop"; };
+    firefox    = { pkg = pkgs.firefox;    desktop = "firefox.desktop"; };
+    chromium   = { pkg = pkgs.chromium;   desktop = "chromium.desktop"; };
+    google-chrome = { pkg = pkgs.google-chrome; desktop = "google-chrome.desktop"; };
+    chrome     = { pkg = pkgs.google-chrome; desktop = "google-chrome.desktop"; };
+  };
+  # crash early on typos
+  chosenBrowser =
+    if vars.browser == null then null
+    else browsers.${vars.browser} or (throw ''
+      unknown browser "${vars.browser}"
+      valid: ${builtins.toString (builtins.attrNames browsers)}
+    '');
+in
 {
   # Packages that will be downloaded and managed in each users unique home manager instance eg shared accross ALL system users (unless otherwise given a exception)
   home.packages = with pkgs; [
@@ -30,7 +48,6 @@
     curl
     wget
     htop
-    librewolf
     kitty
     (pkgs.vesktop.overrideAttrs (old: {
       postFixup = old.postFixup + ''
@@ -50,15 +67,14 @@
     #fish plugins are downloaded in the host files
   ] ++ lib.optionals (!(vars.thunarEnable or false)) [
     kdePackages.dolphin-plugins
-  ];
+  ] ++ lib.optional (chosenBrowser != null) chosenBrowser.pkg;
 
   xdg.configFile."mimeapps.list" = lib.mkIf (!(vars.thunarEnable or false)) {
     text = ''
       [Default Applications]
       inode/directory=dolphin.desktop
       text/plain=kate.desktop
-      text/html=librewolf.desktop
-      application/pdf=librewolf.desktop
+      ${lib.optionalString (chosenBrowser != null) "text/html=${chosenBrowser.desktop}\napplication/pdf=${chosenBrowser.desktop}\n"}
       image/png=krita.desktop
       image/jpeg=krita.desktop
       image/gif=krita.desktop

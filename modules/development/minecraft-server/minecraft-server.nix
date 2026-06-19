@@ -414,7 +414,7 @@ in
     };
   };
 
-  # Creates the fish_admin@'172.21.0.%' MySQL user with the password from the SOPS secret
+  # Creates the fish_admin@'172.19.0.%' MySQL user with the password from the SOPS secret
   # (the ensureUsers above only creates @localhost with unix_socket auth)
   systemd.services.mysql-create-fish-user = {
     description = "Create fish_admin MySQL user for Docker subnet";
@@ -433,8 +433,8 @@ in
         set -e
         PASSWORD=$(cat /run/secrets/minecraft/MYSQL_PASSWORD)
         ${pkgs.mysql84}/bin/mysql -u root -N <<-EOSQL
-          CREATE USER IF NOT EXISTS 'fish_admin'@'172.21.0.%' IDENTIFIED BY '$PASSWORD';
-          GRANT ALL PRIVILEGES ON evenmorefish.* TO 'fish_admin'@'172.21.0.%';
+          CREATE USER IF NOT EXISTS 'fish_admin'@'172.19.0.%' IDENTIFIED BY '$PASSWORD';
+          GRANT ALL PRIVILEGES ON evenmorefish.* TO 'fish_admin'@'172.19.0.%';
           FLUSH PRIVILEGES;
         EOSQL
       ''}";

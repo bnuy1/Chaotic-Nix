@@ -10,6 +10,14 @@
     ollama
     opencode
 
+    tcpdump
+    netcat
+    ipmitool
+    dnsmasq
+    arp-scan
+
+    adoptopenjdk-icedtea-web
+
     tor
     tor-browser
     # Media and file sharing

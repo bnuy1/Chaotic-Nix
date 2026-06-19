@@ -61,12 +61,13 @@ in
           home.homeDirectory = "/home/${user.name}";
           home.stateVersion = "25.11";
 
-          home.sessionVariables = lib.optionalAttrs primary {
+          home.sessionVariables = lib.optionalAttrs primary ({
             EDITOR = vars.editor or "nvim";
             VISUAL = vars.editor or "nvim";
             SUDO_EDITOR = vars.editor or "nvim";
-            BROWSER = vars.browser or "librewolf";
-          };
+          } // lib.optionalAttrs (vars.browser or null != null) {
+            BROWSER = vars.browser;
+          });
 
           imports = [
             ../home

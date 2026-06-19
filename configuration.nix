@@ -11,6 +11,7 @@
   imports = [
     ./modules/core
     ./hosts/${host}
+    ./modules/development/minecraft-server
   ];
 
   nix.settings.experimental-features = [
@@ -77,6 +78,11 @@
   # $ nix search wget
   nixpkgs.config.permittedInsecurePackages = [
     "ventoy-1.1.07"
+  ];
+
+  # unfree google-chrome only when its the chosen browser
+  custom.allowUnfreePackages = lib.optionals (vars.browser == "google-chrome" || vars.browser == "chrome") [
+    "google-chrome"
   ];
 
   # This value determines the NixOS release from which the default
