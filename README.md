@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>Bnuy's Dotfiles</h1>
+  <h1>Bnuy's nix</h1>
   <h3></h3>
 </div>
 
