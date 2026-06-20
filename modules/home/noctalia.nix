@@ -8,7 +8,7 @@
 let
   system = pkgs.stdenv.hostPlatform.system;
   noctaliaPkg = inputs.noctalia.packages.${system}.default;
-  configDir = "${noctaliaPkg}/share/noctalia-shell";
+  configDir = "${noctaliaPkg}/share/noctalia";
 
   # The script Noctalia will trigger when the wallpaper changes
   stylixSyncHook = pkgs.writeShellScriptBin "noctalia-stylix-sync" ''

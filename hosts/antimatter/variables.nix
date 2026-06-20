@@ -1,68 +1,144 @@
 {
+  # Valid: "zen", "xanmod", "stable", "lts"
   kernel = "zen";
 
+  timeZone = "America/New_York";
+
+  # Each entry becomes a NixOS user + home-manager config.
+  # note: Admin account exists in case home manager fails (which happens often)
+  # it is located in /etc/nixos/modules/core/system.nix for emergencys if nothing else.
   users = [
     {
-      name = "fur3";
-      description = "Mal";
+      name = "bnuy"; # Login name (Unix username)
+
+      # System-level
+      isNormalUser = true; # Normal User rather than a service account        (default: true)
+      description = "Mal"; # Full Name (optional)                             (default: null)
+      extraGroups = [
+        "networkmanager"
+        "wheel"
+      ];
+      shell = "fish"; # Login shell. Supported: "bash", "fish"                (default: "bash")
+      sshKeys = [ ]; # Allowed SSH public keys                                (default: [])
+
+      # Home-manager
+      homeDirectory = null; # Custom home dir, null = /home/<name>             (default: null)
+      minimal = false; # Skip ../home import (no common pkgs/stylix/etc)      (default: false)
+      nixvimConfig = null; # Override auto {user}.nix detection               (default: null)
+
+      # User-specific packages, This was difficult to make this supports pretty much everything including dots
+      # Dot-supported: "kdePackages.kate" and "cowsay" are bolth valid
+      extraPkgs = [ ];
+
+      # Git glorious development
       gitUsername = "bnuy1";
       gitEmail = "bnuy@bnuy.dev";
     }
     {
       name = "raina";
+
+      # System-level
+      isNormalUser = true; # Normal User rather than a service account        (default: true)
+      description = null; # Full Name (optional)                              (default: null)
+      extraGroups = [
+        "networkmanager"
+        "wheel"
+      ];
+      shell = "bash"; # Login shell. Supported: "bash", "fish"                (default: "bash")
+      sshKeys = [ ]; # Allowed SSH public keys                                (default: [])
+
+      # Home-manager
+      homeDirectory = null; # Custom home dir, null = /home/<name>            (default: null)
+      minimal = false; # Skip ../home import (no common pkgs/stylix/etc)      (default: false)
+      nixvimConfig = null; # Override auto {user}.nix detection               (default: null)
+      extraPkgs = [ "tmux" ]; # raina wants tmux, bnuy does not
+      # User-only packages. Dot-supported: "kdePackages.kate"
+      # This was difficult to make.
+
+      # Git glorious development
       gitUsername = "Indigo-69";
       gitEmail = "wyfi08g@users.noreply.github.com";
     }
   ];
 
-  # Used by stylix
-  defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
+  # Valid: "sddm", "sddm-graphical", "sddm-headless",
+  #        "tui",  "tui-headless",   "tui-graphical",
+  #        "ly",   "ly-headless",    "ly-graphical"
+  displayManager = "sddm-graphical";
 
-  # Set Display Manager
-  # `tui` for Text login and no graphical system
-  # `sddm` for graphical GUI (default)
-  displayManager = "sddm";
+  # Keyboard / Locale
+  keyboardLayout = "us";
+  keyboardVariant = ""; # e.g. "dvorak", "colemak"
+  consoleKeyMap = "us"; # Console keymap                                    (default: "us")
 
-  clock24h = false;
-  # firefox, librewolf whatever else you prefer.
+  # Style / Theming
+  defaultBackroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
+  stylixPolarity = "dark"; # "dark" or "light"                                          (default: "dark")
+
+  # Browser
+  # Valid: "librewolf", "firefox", "chromium", "google-chrome", or null
+  # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = "librewolf";
 
-  suspendEnable = true;
-  hibernateEnable = false;
-
-  keyboardLayout = "us";
-  keyboardVariant = "";
-  consoleKeyMap = "us";
-
-  # Enable NFS
-  enableNFS = true;
-
-  # Enable Printing Support
-  printEnable = true;
-
-  # Enable Thunar GUI File Manager
-  # Dolphin is default File Manager
-  thunarEnable = false;
-
-  # Auto-upgrade: never auto-reboot a running system
-  autoUpgradeAllowReboot = false;
-
-  # Garbage collection (more aggressive for unattended)
-  gcPeriod = "weekly";
-  gcOptions = "--delete-older-than 30d";
-
-  # Virtualisation / containers
-  dockerEnable = true;
-  podmanEnable = false;
-  libvirtdEnable = true;
-  virt-managerEnable = false;
-
-  # Gaming / streaming
-  steamEnable = true;
-  sunshineEnable = true;
-
-  # Default editor
+  # Editor
+  # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
   editor = "nvim";
 
-  timeZone = "America/New_York";
+  # System Clock (waybar, loginManager, etc)
+  clock24h = false; # 24-hour clock format
+
+  # Power Management
+  suspendEnable = true; # Enable suspend target + lid switch
+  hibernateEnable = false; # Enable hibernate + 8GB swapfile
+
+  # Printing
+  printEnable = true; # CUPS + avahi + ipp-usb
+  canonPrinterSupport = false; # Install cnijfilter2 Canon printer driver   (default: false)
+
+  # File Manager
+  # Valid: "dolphin", "thunar", or null (no file manager)
+  fileManager = "dolphin";
+
+  # Auto-Upgrade
+  autoUpgradeDates = "weekly"; # upgrade is synonomous with update weirdly  (default: "weekly")
+  autoUpgradeAllowReboot = false; # Allow auto-reboot after upgrade/update
+
+  # Nix Garbage Collection
+  gcPeriod = "weekly"; # do somthing sane                                   (default: "weekly")
+  gcOptions = "--delete-older-than 30d"; # Args for nix-collect-garbage     (default: "--delete-older-than 30d")
+
+  # Virtualisation
+  dockerEnable = true; # Rootless Docker daemon + lazydocker
+  podmanEnable = false; # Podman container runtime
+  libvirtdEnable = true; # KVM/QEMU libvirtd daemon
+  virt-managerEnable = false; # GUI VM manager
+
+  # Networking
+  sshPort = 2222; # SSH daemon port                                                    (default: 2222)
+  bluetoothEnable = true; # Bluetooth hardware support                                 (default: true)
+
+  # System
+  grubConfigLimit = 30; # Max GRUB entries before cleanup                              (default: 30)
+  systemFont = "iosevka"; # System monospace font (dot-supported: "nerd-fonts.jetbrains-mono") (default: "iosevka")
+  locale = "en_US.UTF-8"; # System locale                                              (default: "en_US.UTF-8")
+  NonNixBinarySupport = true; # nix-ld: run non-Nix binaries                           (default: true)
+
+  # GPU Drivers
+  # Valid: any combination of "intel", "amd", "nvidia"
+  #
+  # Run this to see what to put in the box:
+  #   lspci | grep -iE '(vga|3d)' | grep -ioE 'amd|nvidia|intel' | sort -u \
+  #     | awk 'BEGIN{printf "["} {printf " \"%s\"", tolower($1)} END{printf " ]\n"}'
+  # Example output: [ "amd" "nvidia" ]
+  gpuDrivers = [ "amd" ]; # Which GPU drivers to enable
+  rocmEnable = true; # Machine learning optimizations for AMD cards
+  nvidiaPowerManagement = false; # NVIDIA power management for Optimus    (default: false)
+
+  # Power Management Utility
+  # Valid: "power-profiles-daemon", "tlp", or null
+  powerManagementUtility = "power-profiles-daemon"; # (default: "power-profiles-daemon")
+
+  # Gaming
+  steamEnable = true; # Steam + gamescope + gamemode + MangoHud
+  sunshineEnable = true; # Game streaming server (port 47990)
 }

@@ -10,6 +10,7 @@
     ollama
     opencode
 
+    awww
     tcpdump
     netcat
     ipmitool

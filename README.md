@@ -1,28 +1,78 @@
 <div align="center">
-    <h1> bnuynix </h1>
-    <h3>agnostic multihost NixOS flake</h3>
+  <h1>Bnuy's Dotfiles</h1>
+  <h3></h3>
 </div>
 
 <div align="center">
 
-![GitHub last commit](https://img.shields.io/github/lastcommit/bnuy1/bnuynix?style=forthebadge&logo=git&logoColor=D9E0EE&labelColor=1E202B&color=8ad7eb)
-![GitHub repo size](https://img.shields.io/github/reposize/bnuy1/bnuynix?style=forthebadge&logo=protondrive&logoColor=8ad7eb&label=SIZE&labelColor=1E202B&color=8ad7eb)
-![NixOS](https://img.shields.io/badge/NixOS25.118ad7eb?style=forthebadge&logo=nixos&logoColor=D9E0EE&labelColor=1E202B)
+![](https://img.shields.io/github/last-commit/bnuy1/bnuynix?style=for-the-badge&logo=git&logoColor=D9E0EE&labelColor=1E202B&color=8ad7eb)
+<a href="https://discord.gg/nCJrkFB6qT">
+<img alt="Dynamic JSON Badge" src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fdiscordapp.com%2Fapi%2Finvites%2FnCJrkFB6qT%3Fwith_counts%3Dtrue&query=approximate_member_count&style=for-the-badge&logo=discord&logoColor=D9E0EE&label=discord&labelColor=%231E202B&color=86dbc0&link=https%3A%2F%2Fdiscord.gg%2FnCJrkFB6qT">
+</a>
+![GitHub repo size](https://img.shields.io/github/repo-size/bnuy1/bnuynix?style=for-the-badge&logo=protondrive&logoColor=8ad7eb&label=SIZE&labelColor=1E202B&color=8ad7eb)
 
 </div>
 
-NixOS configuration for my personal machines — a desktop, a laptop, and a headless server. Designed to be hostagnostic: drop in a new host folder and the flake autodiscovers it. Falls back gracefully when a hostname doesn't match a known folder.
+A multi-host NixOS flake managing four machines -- desktop, laptop, server, and a fallback template.
 
+---
 
+## Quick Start
 
-## Hosts
+```
+git clone https://github.com/bnuy1/bnuynix /etc/nixos
+```
 
-| Host            | Role                  | Kernel | Display         | Users       | Key Features                                             |
-|  |  |  |  |  |  |
-| **antimatter**  | Main desktop          | Zen    | SDDM / Hyprland | fur3, raina | AMD GPU + ROCm, Ollama, Docker, Libvirt, Steam, Sunshine |
-| **nebula**      | ThinkPad T440p laptop | Xanmod | SDDM / Hyprland | fur3        | Intel GPU, LUKS + btrfs, hibernation, kernel hardening   |
-| **singularity** | Headless server       | Xanmod | TUI (none)      | fur3        | Docker, kernel hardening, Minecraft servers, Matrix      |
-| **default**     | Fallback template     | Stable | SDDM / Hyprland | fur3, raina | Generic config with placeholder UUIDs                    |
+The flake auto-discovers hosts by scanning `hosts/` for folders containing a `variables.nix` file. Each folder becomes a build target matching its folder name.
+
+**Build for your machine:**
+
+```bash
+# To get started use this command:
+sudo nixos-rebuild switch --flake /etc/nixos#<your-hostname>
+
+# if your current networking hostname matches a given hostname folder then use this:
+sudo nixos-rebuild switch
+# OR
+nrs # which is a alias for the command above
+
+# Its worth noting that after your setup, any changes can subsiquently
+# use the two commands above rather than the wordy --flake one
+```
+
+If no folder matches the target hostname, it falls back to `hosts/default/`.
+
+If you want to force a specific host config for all builds, set `manualHostname` in `flake.nix`:
+
+```nix
+manualHostname = "Hostname-String-Name";
+```
+
+<details>
+  <summary>Adding your own machine</summary>
+
+Create `hosts/<your-hostname>/variables.nix` using `hosts/default/variables.nix` as a reference. This file controls:
+
+- Users and their home-manager config (shell, git, ssh keys, extra packages)
+- Display manager (SDDM, LY, TUI) and graphical vs headless mode
+- GPU drivers (Intel, AMD, NVIDIA, or combinations)
+- Kernel selection (zen, xanmod, stable, lts)
+- Services to enable (Docker, printing, bluetooth, Steam, etc.)
+- Networking (SSH port, fail2ban, firewall rules)
+- Power management (suspend, hibernate, TLP vs power-profiles-daemon)
+
+Every variable has a default, so you generally need to override what differs from stock.
+
+</details>
+
+<details>
+  <summary>Secrets (SOPS)</summary>
+    SOPS are currently only development package specific, if you need to mess with my development folder, here be dragons. there is a reason its not imported by default. 
+    also they are just plain difficult to work with and only exist for hypr specific needs.
+
+</details>
+
+---
 
 ## Structure
 
@@ -32,9 +82,9 @@ NixOS configuration for my personal machines — a desktop, a laptop, and a head
 ├── configuration.nix
 ├── hosts/
 │   ├── commonhostpackages.nix
-│   ├── antimatter/       # AMD desktop — Zen, ROCm, Ollama
-│   ├── nebula/           # T440p laptop — Xanmod, LUKS+btrfs, hardened
-│   ├── singularity/      # Headless server — Xanmod, hardened, Docker
+│   ├── antimatter/       # AMD desktop -- Zen, ROCm, Ollama
+│   ├── nebula/           # T440p laptop -- Xanmod, LUKS+btrfs, hardened
+│   ├── singularity/      # Headless server -- Xanmod, hardened, Docker
 │   └── default/          # Most likely.. your machine, its a fallback
 ├── modules/
 │   ├── core/             # system core
@@ -71,48 +121,14 @@ NixOS configuration for my personal machines — a desktop, a laptop, and a head
     └── grubtheme/
 ```
 
-## Usage
-
-```bash
-# Switch to this flake (run on the target machine)
-sudo nixosrebuild switch flake .#hostname
-
-# Faster rebuild with nh
-nh os switch flake .#hostname
-
-# this also works!
-nrs
-
-# Force a specific host config regardless of real hostname
-# → Set manualHostname in flake.nix to the folder name
-
-# Update all flake inputs
-nix flake update
-```
-
-## Features
-
- **Dynamic host discovery** — reads `hosts/` subdirectories at eval time; unknown hostnames fall back to `hosts/default/`. No hardcoded host list.
- **Perhost variables** — each host has a `variables.nix` acting as a registry. Shared modules consume these via conditional logic. Reduces duplication.
- **Selective unfree** — `allowUnfreePredicate` for granular perpackage allowlisting instead of a global blank check.
- **Conditional graphical stack** — GUI modules (Hyprland, Steam, portals) gate on `displayManager == "sddm"`. Set it to `null` for headless.
- **Secrets** — SOPS + `sopsnix` with Age encryption for Minecraft credentials and SSH keys.
-
-## Experimental Services
-
-The `modules/development/` directory contains selfhosted services I run on my server (singularity):
-
- **Minecraft server cluster** — Velocity proxy + 4 Paper servers (survival, lab, creative, raina) + GeyserMC (Bedrock support) + Restic backups
- **Matrix chat** — Continuwuity server at chat.bnuy.dev + Coturn TURN
-
-These are **personal experiments**. They won't deploy cleanly on your machine without tinkering — they depend on my specific directory layout, secrets, and networking. I plan to extract each into its own repository eventually.
+---
 
 ## License
 
 This project is licensed under the MIT license.
 
 ```
-[x] Use, bolth public and private
+[x] Use, both public and private
 [x] Modification
 [x] Distribution
 [x] Sublicensing

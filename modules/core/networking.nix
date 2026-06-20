@@ -5,6 +5,9 @@
   ...
 }:
 
+let
+  sshPort = vars.sshPort or 2222;
+in
 {
   # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
@@ -41,7 +44,7 @@
   };
 
   hardware.bluetooth = {
-    enable = true;
+    enable = vars.bluetoothEnable or true;
     powerOnBoot = true;
     settings = {
       General = {
@@ -73,7 +76,7 @@
 
   services.openssh = {
     enable = true;
-    ports = [ 2222 ];
+    ports = [ sshPort ];
 
     settings = {
       PasswordAuthentication = false;
@@ -93,7 +96,7 @@
   # Open ports in the firewall.           ssh
   networking.firewall.allowedTCPPorts = [ 5432 ];
   networking.firewall.allowedUDPPorts = [
-    2222
+    sshPort
     47998
     47999
     48000

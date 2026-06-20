@@ -8,12 +8,14 @@
     ./polkit.nix
     ./home_manager.nix
     ./stylix.nix
-    ./hyprland.nix
-    ./steam.nix
+    ./hyprland
+    ./gaming
     ./quickshell.nix
     ./printing.nix
     ./swap.nix
     ./power-management.nix
+    ./displayManager
     ./xwaylandvideobridge
+    ../../modules/hardware/gpu
   ];
 }

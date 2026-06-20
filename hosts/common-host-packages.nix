@@ -1,22 +1,18 @@
-{ pkgs, ... }:
-
-{
+{ config, pkgs, lib, ... }:
+let
+  dm = config.custom.displayManagerParsed;
+in {
   custom.allowUnfreePackages = [
     "spotify"
   ];
 
   environment.systemPackages = with pkgs; [
-    # Development
+    # CLI
     nodejs
     opencv
     cmake
     gnumake
     pkg-config
-
-    plymouth
-    hyprsunset
-    # System utils
-    awww
     zip
     unzip
     ripgrep
@@ -28,11 +24,12 @@
     calc
     man
     tldr
-    # You prob want this
     brightnessctl
     blueman
     exfatprogs
-    # Gui
+    plymouth
+  ] ++ lib.optionals dm.graphical [
+    hyprsunset
     orca-slicer
     prusa-slicer
     spotify

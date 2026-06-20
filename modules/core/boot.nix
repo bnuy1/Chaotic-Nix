@@ -10,6 +10,9 @@ let
 in
 {
   boot.kernelPackages = kernelMap.${kernelOption};
+  # prevent /boot overflow
+  boot.loader.grub.configurationLimit = vars.grubConfigLimit or 30;
+
   boot.loader = {
     efi.canTouchEfiVariables = true;
     grub = {
@@ -19,4 +22,10 @@ in
     };
   };
   boot.tmp.cleanOnBoot = true;
+
+  boot.kernelParams = [
+    "slab_nomerge"                         # stops memory merge attacks
+    "init_on_alloc=1"                      # clears memory before giving it out
+    "init_on_free=1"                       # clears memory after its freed
+  ];
 }

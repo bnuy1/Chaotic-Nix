@@ -1,18 +1,15 @@
 {
   pkgs,
-  host,
+  vars,
   ...
 }:
-let
-  inherit (import ../../hosts/${host}/variables.nix) defaultBackroundImage;
-in
 {
   # Styling Options
   stylix = {
     enable = true;
-    image = defaultBackroundImage;
+    image = vars.defaultBackroundImage;
 
-    polarity = "dark";
+    polarity = vars.stylixPolarity or "dark";
     opacity.terminal = 1.0;
     targets = {
       grub.enable = false;

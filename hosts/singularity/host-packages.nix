@@ -7,10 +7,8 @@
 {
   environment.systemPackages = with pkgs; [
     # Server utilities
-    btop
     ethtool
     fastfetch
-    htop
     iotop
     iperf3
     lsof

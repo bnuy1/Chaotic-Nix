@@ -4,8 +4,6 @@ let
   cfg = config.hardware.thinkpad-t440p;
 in
 {
-  imports = [ ./gpu ];
-
   options.hardware.thinkpad-t440p = {
     enable = lib.mkEnableOption "ThinkPad T440p hardware support";
 
@@ -21,10 +19,7 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    hardware.gpu.intel.enable = true;
-
     hardware.gpu.nvidia = lib.mkIf (cfg.gpu == "nvidia") {
-      enable = true;
       package = "legacy_470";
       busId = "PCI:1:0:0";
       prime = {
@@ -61,7 +56,5 @@ in
       clickMethod = "clickfinger";
     };
 
-    services.thermald.enable = true;
-    powerManagement.cpuFreqGovernor = "powersave";
   };
 }

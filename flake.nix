@@ -42,8 +42,12 @@
       allHostFolders = builtins.readDir hostDir;
 
       # Builds a list of every folder name inside /etc/nixos/hosts/
+      # skip dirs without variables.nix (e.g. build artifacts like result/)
       myHosts = builtins.attrNames (
-        nixpkgs.lib.filterAttrs (name: type: type == "directory") allHostFolders
+        nixpkgs.lib.filterAttrs (name: type:
+          type == "directory"
+          && builtins.pathExists (hostDir + "/${name}/variables.nix")
+        ) allHostFolders
       );
 
       # The HOST generator/ logic for finding which machine to build

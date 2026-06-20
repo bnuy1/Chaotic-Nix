@@ -24,6 +24,20 @@ in
       description = "NVIDIA driver package version";
     };
 
+    powerManagement = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Enable NVIDIA power management (useful for Optimus laptops)";
+      };
+
+      finegrained = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Enable fine-grained NVIDIA power management";
+      };
+    };
+
     open = mkOption {
       type = types.bool;
       default = false;
@@ -59,8 +73,8 @@ in
     hardware.nvidia = mkMerge [
       {
         modesetting.enable = true;
-        powerManagement.enable = false;
-        powerManagement.finegrained = false;
+        powerManagement.enable = cfg.powerManagement.enable;
+        powerManagement.finegrained = cfg.powerManagement.finegrained;
         open = cfg.open;
         nvidiaSettings = true;
         package = nvidiaPkg;

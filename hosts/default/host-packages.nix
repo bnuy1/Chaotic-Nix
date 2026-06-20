@@ -6,6 +6,7 @@
 }:
 {
   environment.systemPackages = with pkgs; [
+    awww
     # Media and file sharing
     qbittorrent
     yt-dlp

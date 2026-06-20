@@ -7,20 +7,20 @@
 {
   services = {
     printing = {
-      enable = vars.printEnable;
-      drivers = with pkgs; lib.optionals vars.printEnable [ cnijfilter2 ];
+      enable = vars.printEnable or false;
+      drivers = with pkgs; lib.optionals (vars.canonPrinterSupport or false) [ cnijfilter2 ];
     };
     avahi = {
-      enable = vars.printEnable;
+      enable = vars.printEnable or false;
       nssmdns4 = true;
       openFirewall = true;
     };
-    ipp-usb.enable = vars.printEnable;
+    ipp-usb.enable = vars.printEnable or false;
   };
 
-  custom.allowUnfreePackages = lib.optionals (vars.printEnable or false) [
+  custom.allowUnfreePackages = lib.optionals (vars.canonPrinterSupport or false) [
     "cnijfilter2"
   ];
-  # install a printer drivers specific to my setup
-  environment.systemPackages = with pkgs; lib.optionals vars.printEnable [ cnijfilter2 ];
+  # Canon printer driver (only needed for Canon printers)
+  environment.systemPackages = with pkgs; lib.optionals (vars.canonPrinterSupport or false) [ cnijfilter2 ];
 }

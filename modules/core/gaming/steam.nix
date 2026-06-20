@@ -17,6 +17,13 @@
         "--expose-wayland"
       ];
     };
+
+    gamemode.enable = vars.steamEnable or false;
+  };
+
+  hardware.graphics = lib.mkIf (vars.steamEnable or false) {
+    extraPackages = with pkgs; [ mangohud ];
+    extraPackages32 = with pkgs; [ mangohud ];
   };
 
   custom.allowUnfreePackages = lib.optionals (vars.steamEnable or false) [

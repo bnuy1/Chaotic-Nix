@@ -2,14 +2,15 @@
   config,
   pkgs,
   lib,
-  vars,
   inputs,
   ...
 }:
-{
+let
+  dm = config.custom.displayManagerParsed;
+in {
   options.programs.xwaylandvideobridge.enable = lib.mkOption {
     type = lib.types.bool;
-    default = vars.displayManager != null;
+    default = dm.graphical;
     description = "Enable xwaylandvideobridge for X11 screen sharing in Discord etc.";
   };
 

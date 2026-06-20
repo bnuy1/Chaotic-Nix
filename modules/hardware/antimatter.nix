@@ -4,16 +4,11 @@ let
   cfg = config.hardware.antimatter;
 in
 {
-  imports = [ ./gpu ];
-
   options.hardware.antimatter = {
     enable = lib.mkEnableOption "Antimatter (main desktop) hardware support";
   };
 
   config = lib.mkIf cfg.enable {
-    hardware.gpu.amd.enable = true;
-    hardware.gpu.amd.rocm = true;
-
     hardware.cpu.intel.updateMicrocode =
       lib.mkDefault config.hardware.enableRedistributableFirmware;
 
