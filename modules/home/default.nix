@@ -6,7 +6,9 @@
     ]
     ++ lib.optionals dm.graphical [
       ./kitty.nix
+      ./waybar.nix
+      ./rofi.nix
+      ./dunst.nix
       ./hyprland
-      ./noctalia.nix
     ];
 }

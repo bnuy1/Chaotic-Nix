@@ -105,7 +105,6 @@ Every variable has a default, so you generally need to override what differs fro
 │   │   ├── commonuserpackages.nix
 │   │   ├── kitty.nix
 │   │   ├── stylix.nix
-│   │   ├── noctalia.nix    # my bar/shell and i hate it
 │   │   ├── hyprland/
 │   │   └── nixvim/       # Peruser neovim
 │   ├── hardware/

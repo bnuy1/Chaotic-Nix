@@ -249,26 +249,6 @@
         "type": "github"
       }
     },
-    "noctalia": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1781378895,
-        "narHash": "sha256-9y56O98tAyKHOcdGRn+9MrgG/ItcgAnF9+D/vaFX608=",
-        "owner": "noctalia-dev",
-        "repo": "noctalia-shell",
-        "rev": "7fb6c33deafc172ab0b3c229d95d9e2e4087efc4",
-        "type": "github"
-      },
-      "original": {
-        "owner": "noctalia-dev",
-        "repo": "noctalia-shell",
-        "type": "github"
-      }
-    },
     "nur": {
       "inputs": {
         "flake-parts": [
@@ -299,7 +279,6 @@
         "home-manager": "home-manager",
         "nixpkgs": "nixpkgs",
         "nixvim": "nixvim",
-        "noctalia": "noctalia",
         "sops-nix": "sops-nix",
         "stylix": "stylix",
         "xwaylandvideobridge": "xwaylandvideobridge"

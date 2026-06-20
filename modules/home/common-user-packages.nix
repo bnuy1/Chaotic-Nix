@@ -72,7 +72,6 @@ in
       pavucontrol
       arduino
       rofi
-      dunst
       libnotify
       libreoffice
       pywal16

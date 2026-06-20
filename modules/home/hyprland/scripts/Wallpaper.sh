@@ -20,5 +20,4 @@ fi
 # Set the wallpaper
 awww img "$wallpaper"
 
-# Generate colors with pywal
-wal -i $wallpaper
+# Colors are handled by stylix — no need for pywal
