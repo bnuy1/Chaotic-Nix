@@ -81,6 +81,18 @@ in
           '';
         };
 
+        programs.ssh = lib.mkIf (user ? githubSSHKey) {
+          enable = true;
+          enableDefaultConfig = false;
+          settings = {
+            "github.com" = {
+              hostname = "github.com";
+              identityFile = user.githubSSHKey;
+              identitiesOnly = true;
+            };
+          };
+        };
+
         programs.git = {
           enable = true;
           settings = {

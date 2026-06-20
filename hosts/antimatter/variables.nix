@@ -32,6 +32,7 @@
 
       # Git glorious development
       gitUsername = "bnuy1";
+      githubSSHKey = "~/.ssh/id_ed25519_github"; # Dedicated SSH key for GitHub (default: null)
       gitEmail = "bnuy@bnuy.dev";
     }
     {
@@ -57,6 +58,7 @@
 
       # Git glorious development
       gitUsername = "Indigo-69";
+      githubSSHKey = null; # Dedicated SSH key for GitHub (default: null)
       gitEmail = "wyfi08g@users.noreply.github.com";
     }
   ];
