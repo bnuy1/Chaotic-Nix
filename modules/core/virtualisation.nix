@@ -5,7 +5,7 @@
   # Only enable either docker or podman -- Not both
   virtualisation = {
     docker = {
-      enable = vars.dockerEnable or false;
+      enable = lib.mkForce (vars.dockerEnable or false);
       rootless = {
         enable = true;
         setSocketVariable = true;

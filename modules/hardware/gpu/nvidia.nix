@@ -66,6 +66,13 @@ in
   };
 
   config = mkIf cfg.enable {
+    custom.allowUnfreePackages = [
+      "nvidia-x11"
+      "nvidia-settings"
+      "nvidia-persistenced"
+      "nvidia-kernel-modules"
+    ];
+
     services.xserver.videoDrivers = [ "nvidia" ];
 
     hardware.graphics.enable = true;

@@ -63,13 +63,18 @@
         in
         nixpkgs.lib.nixosSystem {
           # This sends 'inputs', 'networkingHostname', 'host', and 'vars' to EVERY file
-          specialArgs = {
+          specialArgs = let
+            # Load default vars first, then merge host vars on top
+            # Hosts only need to override what differs from default
+            defaultVars = import (hostDir + "/default/variables.nix");
+            hostVars = import (matchedPath + "/variables.nix");
+          in {
             inherit inputs;
             inherit networkingHostname; # The actual target hostname (e.g., "arbitrary-name")
             host = matchedHost; # The folder matched (e.g., "default" or "antimatter")
 
             # Safely loads variables from the matched folder, preventing missing file crashes
-            vars = import (matchedPath + "/variables.nix");
+            vars = nixpkgs.lib.recursiveUpdate defaultVars hostVars;
           };
 
           modules = [
@@ -86,12 +91,10 @@
           ];
         };
 
+      forAllSystems = nixpkgs.lib.genAttrs [ "x86_64-linux" ];
+      pkgsFor = nixpkgs.legacyPackages.x86_64-linux;
     in
     {
-      # OUTPUTS
-      # Generates nixosConfigurations for all known host folders.
-      # Build a specific host with: sudo nixos-rebuild switch --flake .#hostname
-      # Falls back to 'hosts/default/' if the hostname doesn't match a folder.
       nixosConfigurations = builtins.listToAttrs (
         map (name: {
           inherit name;

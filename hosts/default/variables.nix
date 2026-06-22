@@ -5,7 +5,7 @@
   timeZone = "America/New_York";
 
   # Each entry becomes a NixOS user + home-manager config.
-  # note: Admin account exists in case home manager fails (which happens often)
+  # note: Admin account exists in case home manager fails (which often happens)
   # it is located in /etc/nixos/modules/core/system.nix for emergencys if nothing else.
   users = [
     {
@@ -145,4 +145,30 @@
   # Gaming
   steamEnable = false; # Steam + gamescope + gamemode + MangoHud
   sunshineEnable = false; # Game streaming server (port 47990)
+
+  # Btrfs (set per-host on btrfs systems)
+  btrfs = {};
+
+  # Swap
+  swap = {
+    enable = true; # zram swap
+    zramPercent = 100; # % of RAM for zram
+    algorithm = "zstd"; # zram compression
+    swapFileSize = 8192; # MB when hibernateEnable = true
+  };
+
+  # Snapshots
+  snapshots = {
+    enable = true;
+    schedule = "hourly"; # systemd OnCalendar or short name
+    exclude = [ "/nix" ];
+
+    retention = {
+      hourly = null; # null -> default (24)
+      daily = null; # null -> default (7)
+      weekly = null; # null -> default (4)
+      monthly = null; # null -> default (6)
+      yearly = null; # null -> default (0)
+    };
+  };
 }
