@@ -538,7 +538,7 @@ in
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
-      StartLimitIntervalSec = 0; # Disable restart rate limiting
+      StartLimitInterval = 0; # Disable restart rate limiting
     };
     preStart = ''
 
@@ -559,7 +559,7 @@ in
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
-      StartLimitIntervalSec = 0; # Disable restart rate limiting
+      StartLimitInterval = 0; # Disable restart rate limiting
     };
     preStart = ''
 
@@ -580,7 +580,7 @@ in
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
-      StartLimitIntervalSec = 0; # Disable restart rate limiting
+      StartLimitInterval = 0; # Disable restart rate limiting
     };
     preStart = ''
 
@@ -602,7 +602,7 @@ in
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
-      StartLimitIntervalSec = 0; # Disable restart rate limiting
+      StartLimitInterval = 0; # Disable restart rate limiting
     };
     preStart = ''
 

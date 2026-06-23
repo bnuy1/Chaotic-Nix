@@ -1,11 +1,8 @@
 { config, inputs, ... }:
 {
 
-  systemd.services.sops-nix.enable = true;
-
   sops.defaultSopsFile = ./secrets.yaml;
   sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-  sops.age.keyFile = "/var/lib/sops-nix/key.txt";
 
   # because nix needs to have hardcoded strings, im able to bypass this by
   # setting a friggen root env param :/

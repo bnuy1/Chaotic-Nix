@@ -1,6 +1,6 @@
 {
   # Valid: "zen", "xanmod", "stable", "lts"
-  kernel = "zen";
+  kernel = "stable";
 
   timeZone = "America/New_York";
 

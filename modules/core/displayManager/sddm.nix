@@ -7,6 +7,7 @@ in {
 
   services.gnome.gnome-keyring.enable = dm.name == "sddm";
   security.pam.services.hyprland.enableGnomeKeyring = dm.name == "sddm";
+  security.pam.services.sddm.enableGnomeKeyring = dm.name == "sddm";
 
   services.xserver.xkb = {
     layout = vars.keyboardLayout;

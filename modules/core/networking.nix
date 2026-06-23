@@ -12,6 +12,9 @@ in
   # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
 
+  # Set IPv4 forwarding explicitly to avoid NM race condition
+  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
   # Enable networking
   networking = {
     networkmanager = {
@@ -39,6 +42,8 @@ in
         Domains = [ "~." ];
         # Force all DNS traffic to be encrypted using TLS
         DNSOverTLS = "opportunistic";
+        # Let avahi handle .local mDNS — avoids dual-stack warnings
+        MulticastDNS = false;
       };
     };
   };
