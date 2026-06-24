@@ -18,6 +18,10 @@ let
   rootSubvol = subvolFromOpts rootOpts;
 
   btrfsMounts = lib.filterAttrs (name: fs: fs.fsType or "" == "btrfs") config.fileSystems;
+
+  # Use the root mount point as the btrbk volume (not the block device),
+  # so subvolume paths resolve correctly — e.g. "home" → "/home" not "/dev/block/home"
+  btrbkVolume = "/";
   snapExclude = snap.exclude or [ "/nix" ];
 
   btrbkSubvols = lib.listToAttrs (builtins.concatMap (mountpoint:
@@ -59,12 +63,12 @@ in
       boot.supportedFilesystems = [ "btrfs" ];
       services.btrfs.autoScrub.enable = true;
 
-      services.btrbk.instances.local = {
+      services.btrbk.instances.btrbk = {
         onCalendar = schedule;
         settings = {
           snapshot_preserve = "${toString ret.hourly}h ${toString ret.daily}d ${toString ret.weekly}w ${toString ret.monthly}m";
           snapshot_preserve_min = "${toString ret.daily}d";
-          volume.${device}.subvolume = btrbkSubvols;
+          volume.${btrbkVolume}.subvolume = btrbkSubvols;
         };
       };
     })

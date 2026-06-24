@@ -31,6 +31,9 @@
       # Dot-supported: "kdePackages.kate" and "cowsay" are bolth valid
       extraPkgs = [ ];
 
+      # Per-user shell alias overrides (merged on top of systemAliases)
+      shellAliases = { };
+
       # Git glorious development
       gitUsername = "Ha2k4r";
       githubSSHKey = null; # Dedicated SSH key for GitHub (default: null)
@@ -57,6 +60,9 @@
       extraPkgs = [ "tmux" ]; # raina wants tmux, bnuy does not
       # User-only packages. Dot-supported: "kdePackages.kate"
       # This was difficult to make.
+
+      # Per-user shell alias overrides (merged on top of systemAliases)
+      shellAliases = { };
 
       # Git glorious development
       gitUsername = "Indigo-69";
@@ -122,7 +128,6 @@
   bluetoothEnable = true; # Bluetooth hardware support                                 (default: true)
 
   # System
-  grubConfigLimit = 30; # Max GRUB entries before cleanup                              (default: 30)
   systemFont = "iosevka"; # System monospace font (dot-supported: "nerd-fonts.jetbrains-mono") (default: "iosevka")
   locale = "en_US.UTF-8"; # System locale                                              (default: "en_US.UTF-8")
   NonNixBinarySupport = true; # nix-ld: run non-Nix binaries                           (default: true)

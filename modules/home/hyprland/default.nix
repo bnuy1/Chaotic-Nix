@@ -17,6 +17,7 @@
   xdg.configFile = {
     "hypr/hyprland.conf".source = ./hyprland.conf;
     "hypr/hyprsunset.conf".source = ./hyprsunset.conf;
+    "hypr/hyprlock.conf".source = ./hyprlock.conf;
     "hypr/hypridle.conf".source = ./hypridle.conf;
     "hypr/keybinds.conf".source = ./keybinds.conf;
     "hypr/windowrules.conf".source = ./windowrules.conf;

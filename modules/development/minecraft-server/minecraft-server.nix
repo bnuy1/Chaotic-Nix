@@ -321,6 +321,7 @@ in
         BACKUP_METHOD = "restic";
         RESTIC_REPOSITORY = "/backups";
         RESTIC_HOSTNAME = "Bnuyhole-Network";
+        RESTIC_PASSWORD_FILE = config.sops.secrets."minecraft/RESTIC_PASSWORD".path;
 
         # Backup logic
         BACKUP_INTERVAL = "30m";
@@ -562,14 +563,12 @@ in
       StartLimitInterval = 0; # Disable restart rate limiting
     };
     preStart = ''
-
-      mkdir -p /var/lib/minecraft/survival/config
+      mkdir -p /var/lib/minecraft/lab/config
 
       cp -f ${./paper-global.yml} /var/lib/minecraft/lab/config/paper-global.yml
 
       # Drop the bunny image into the root of the server data folder
       cp -f /etc/nixos/assets/server-icon.png /var/lib/minecraft/lab/server-icon.png
-
 
       mkdir -p /var/lib/minecraft/lab
       chown -R 1000:1000 /var/lib/minecraft/lab

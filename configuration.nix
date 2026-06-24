@@ -4,6 +4,7 @@
   host,
   networkingHostname,
   vars,
+  inputs,
   ...
 }:
 {
@@ -11,7 +12,8 @@
   imports = [
     ./modules/core
     ./hosts/${host}
-    ./modules/development/minecraft-server
+    #./modules/development/minecraft-server
+    inputs.silentSDDM.nixosModules.default
   ];
   networking.hostName = networkingHostname;
 }

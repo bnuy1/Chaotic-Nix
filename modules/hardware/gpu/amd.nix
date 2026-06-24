@@ -14,6 +14,8 @@ in
 
     hardware.graphics.enable = true;
 
+    boot.initrd.kernelModules = [ "amdgpu" ];
+
     nixpkgs.config.rocmSupport = mkIf cfg.rocm true;
   };
 }

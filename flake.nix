@@ -16,13 +16,18 @@
 
     stylix.url = "github:danth/stylix";
 
-    xwaylandvideobridge = {
-      url = "git+https://invent.kde.org/system/xwaylandvideobridge";
+    # SOPS secrets manager (for development) so.. its not required if you recieved this file from a friend.
+    sops-nix.url = "github:Mic92/sops-nix";
+
+    silentSDDM = {
+      url = "github:uiriansan/SilentSDDM";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # SOPS secrets manager (for development) so.. its not required if you recieved this file from a friend.
-    sops-nix.url = "github:Mic92/sops-nix";
+    lanzaboote = {
+      url = "github:nix-community/lanzaboote/v1.0.0";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -82,6 +87,7 @@
             inputs.home-manager.nixosModules.home-manager
             inputs.stylix.nixosModules.stylix
             inputs.sops-nix.nixosModules.sops
+            inputs.lanzaboote.nixosModules.lanzaboote
             # THE ROUTER:
             # We already proved the path exists above, so we can just pass the matched path.
             matchedPath

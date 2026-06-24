@@ -44,6 +44,10 @@
       nixvimConfig = null;
       extraPkgs = [ "tmux" ];
 
+      shellAliases = {
+        ls = "ls -a --color";
+      };
+
       gitUsername = "Indigo-69";
       githubSSHKey = null;
       gitEmail = "wyfi08g@users.noreply.github.com";
@@ -76,7 +80,6 @@
   sshPort = 2222;
   bluetoothEnable = true;
 
-  grubConfigLimit = 30;
   systemFont = "iosevka";
   locale = "en_US.UTF-8";
   NonNixBinarySupport = true;

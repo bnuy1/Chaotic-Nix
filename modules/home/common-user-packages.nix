@@ -104,11 +104,6 @@ in
       set -U __done_notify_sound 1
     '';
 
-    shellAliases = {
-      ls = "ls --color";
-      nrs = "sudo nixos-rebuild switch";
-    };
-
     plugins = [
       {
         name = "done";

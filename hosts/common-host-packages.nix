@@ -27,6 +27,7 @@ in {
     brightnessctl
     blueman
     exfatprogs
+    sbctl
     plymouth
   ] ++ lib.optionals dm.graphical [
     hyprsunset

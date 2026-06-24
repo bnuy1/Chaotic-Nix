@@ -15,7 +15,6 @@
     ./swap.nix
     ./power-management.nix
     ./displayManager
-    ./xwaylandvideobridge
     ./storage.nix
     ./snapshots.nix
     ../../modules/hardware/gpu

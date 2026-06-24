@@ -55,7 +55,6 @@
   sshPort = 2222;
   bluetoothEnable = false;
 
-  grubConfigLimit = 30;
   systemFont = "iosevka";
   locale = "en_US.UTF-8";
   NonNixBinarySupport = false;
