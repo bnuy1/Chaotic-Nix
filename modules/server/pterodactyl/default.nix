@@ -1,0 +1,6 @@
+{
+  imports = [
+    ./pterodactyl.nix
+  ];
+}
+

@@ -1,0 +1,17 @@
+# Encrypt/decrypt with the system SSH host key.
+# The NixOS module reads this key at boot via sops-nix.
+#
+# Usage:
+#   # Edit values in plaintext (runs $EDITOR):
+#   sudo nix-shell -p sops --run "sops secrets.yaml"
+#
+#   # Encrypt an existing plaintext file:
+#   sudo nix-shell -p sops --run "sops --encrypt --in-place secrets.yaml"
+#
+#   # Decrypt to inspect:
+#   sudo nix-shell -p sops --run "sops --decrypt secrets.yaml"
+
+keys:
+  - &host_key age169cqlzrfhr549nea59v0z9dgarkmx3spa2r82q77y2ecttnhlfkswnkr22
+creation_rules:
+  - age: *host_key

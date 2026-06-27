@@ -36,7 +36,7 @@
       # Manual override: set to a host folder name (e.g. "singularity") to force
       # ALL nixosConfigurations to use that host's config regardless of the flake
       # attribute name or the machine's hostname. Set to null for normal behavior.
-      manualHostname = "antimatter";
+      manualHostname = null;
 
       hostDir = ./hosts;
       allHostFolders = builtins.readDir hostDir;

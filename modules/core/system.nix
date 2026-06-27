@@ -65,7 +65,7 @@ in
     security.polkit.enable = true;
     programs.thunar.enable = (vars.fileManager or null) == "thunar";
     boot.supportedFilesystems = [ "exfat" ];
-    boot.kernelModules = [ "exfat" ];
+    boot.kernelModules = [ "exfat" "usb_storage" "uas" "sd_mod" ];
 
     services.fstrim.enable = true;
 
