@@ -1,0 +1,5 @@
+{ ... }: {
+  imports = [
+    ./netboot.nix
+  ];
+}

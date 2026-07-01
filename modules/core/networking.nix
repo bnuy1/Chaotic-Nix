@@ -20,6 +20,7 @@ in
     networkmanager = {
       enable = true;
       wifi.backend = "iwd";
+      unmanaged = [ "interface-name:wg*" ];
     };
 
     enableIPv6 = true;
@@ -99,9 +100,8 @@ in
   };
 
   # Open ports in the firewall.           ssh
-  networking.firewall.allowedTCPPorts = [ 5432 ];
+  networking.firewall.allowedTCPPorts = [ sshPort 5432 ];
   networking.firewall.allowedUDPPorts = [
-    sshPort
     47998
     47999
     48000

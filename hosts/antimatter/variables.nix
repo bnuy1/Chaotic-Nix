@@ -100,4 +100,9 @@
   snapshots = {
     enable = true;
   };
+
+  netboot = {
+    enable = true;
+    listenIp = "192.168.1.166";
+  };
 }
