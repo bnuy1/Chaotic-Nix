@@ -8,9 +8,32 @@ let
   hostKeys = if builtins.pathExists ./host-keys.nix then import ./host-keys.nix else [];
   netbootKeys = sshKeys ++ hostKeys;
 
-  ipxeWithCert = (pkgs.ipxe.override {
-    additionalOptions = [ "CERT_CMD" ];
-  }).overrideAttrs (old: {
+  netbootSslCert = pkgs.runCommand "netboot-ssl-cert" {
+    nativeBuildInputs = [ pkgs.openssl ];
+    listenIp = cfg.listenIp;
+  } ''
+    mkdir -p $out
+    openssl req -x509 -newkey rsa:4096 \
+      -keyout $out/key.pem \
+      -out $out/cert.pem \
+      -days 3650 -nodes \
+      -subj "/CN=$listenIp" \
+      -addext "subjectAltName=IP:$listenIp"
+    chmod 644 $out/cert.pem
+    chmod 644 $out/key.pem
+  '';
+
+  ipxeBase = pkgs.ipxe.override {
+    enableDefaultPlatformTargets = false;
+    additionalTargets = {
+      "bin-x86_64-efi/ipxe-legacy.efi" = null;
+      "bin/undionly.kpxe" = null;
+    };
+    firmwareBinary = "ipxe-legacy.efi";
+    additionalOptions = [ "CONSOLE_CMD" ];
+  };
+
+  ipxeBoot = ipxeBase.overrideAttrs (old: {
     makeFlags = (old.makeFlags or []) ++ [
       "CERT=${netbootSslCert}/cert.pem"
       "TRUST=${netbootSslCert}/cert.pem"
@@ -41,21 +64,6 @@ let
     else "${fallbackHostWgKeys}/private";
   clientPrivateKeyFile = if wgKeys != null then wgKeys.clientPrivateKeyFile
     else "${fallbackClientWgKeys}/private";
-
-  netbootSslCert = pkgs.runCommand "netboot-ssl-cert" {
-    nativeBuildInputs = [ pkgs.openssl ];
-    listenIp = cfg.listenIp;
-  } ''
-    mkdir -p $out
-    openssl req -x509 -newkey rsa:4096 \
-      -keyout $out/key.pem \
-      -out $out/cert.pem \
-      -days 3650 -nodes \
-      -subj "/CN=$listenIp" \
-      -addext "subjectAltName=IP:$listenIp"
-    chmod 644 $out/cert.pem
-    chmod 640 $out/key.pem
-  '';
 
   evalConfig = import "${toString pkgs.path}/nixos/lib/eval-config.nix";
   netbootConfig = evalConfig {
@@ -101,10 +109,53 @@ let
 
   autoexecScript = pkgs.writeText "autoexec.ipxe" ''
     #!ipxe
-    kernel https://${cfg.listenIp}:${toString cfg.httpsPort}/bzImage init=${build.toplevel}/init loglevel=4 ''${cmdline}
-    initrd https://${cfg.listenIp}:${toString cfg.httpsPort}/initrd
+
+    :start
+    set menu-timeout 15000
+    set menu-default nixos
+    cpair --foreground 11 1
+    cpair --foreground 15 2
+    cpair --foreground 5 3
+
+    menu bnuy boot
+    item --key n nixos    [n] NixOS Kexec (SSH + WireGuard VPN)
+    item --key i isos     [i] Boot ISO from /srv/iso/
+    item --gap -- ----------------------------------------
+    item --key s shell    [s] iPXE Shell
+    item --key r reboot   [r] Reboot
+    item --key e exit     [e] Exit to BIOS
+    choose --default ''${menu-default} --timeout ''${menu-timeout} selected && goto ''${selected} || goto ''${menu-default}
+
+    :nixos
+    kernel https://${cfg.listenIp}:${toString cfg.httpsPort}/nixos/bzImage init=${build.toplevel}/init loglevel=4 ''${cmdline}
+    initrd https://${cfg.listenIp}:${toString cfg.httpsPort}/nixos/initrd
     boot
+
+    :isos
+    chain https://${cfg.listenIp}:${toString cfg.httpsPort}/iso-menu.ipxe || goto start
+    goto start
+
+    :shell
+    shell
+    goto start
+
+    :reboot
+    reboot
+
+    :exit
+    exit
   '';
+  wrapperInitrd = pkgs.runCommand "wrapper-initrd" {
+    nativeBuildInputs = [ pkgs.busybox ];
+  } ''
+    mkdir -p $out/rootfs/bin
+    cp ${pkgs.busybox}/bin/busybox $out/rootfs/bin/
+    cp ${./wrapper-initrd/init} $out/rootfs/init
+    chmod +x $out/rootfs/init
+    cd $out/rootfs
+    find . | cpio -o -H newc | gzip > $out/initrd.gz
+  '';
+
 in
 {
   imports = [
@@ -145,7 +196,7 @@ in
     httpPort = lib.mkOption {
       type = lib.types.port;
       default = 8000;
-      description = "Port for HTTP server (serves CA cert to iPXE)";
+      description = "Port for HTTP server (serves kernel, initrd, ISOs)";
     };
 
     httpsPort = lib.mkOption {
@@ -162,13 +213,16 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ ipxeWithCert ];
+    environment.systemPackages = [ ipxeBoot (pkgs.runCommand "gen-menu.sh" { } ''
+      mkdir -p $out/bin
+      cp ${./gen-menu.sh} $out/bin/gen-menu.sh
+      chmod +x $out/bin/gen-menu.sh
+    '') ];
 
     services.dnsmasq = {
       enable = true;
       settings = {
         interface = cfg.interface;
-        bind-interfaces = true;
         port = 0;
         dhcp-range = cfg.dhcpRange;
         dhcp-match = "set:ipxe,175";
@@ -191,6 +245,14 @@ in
           }
         ];
         root = cfg.tftpRoot;
+        locations."/iso/" = {
+          alias = "/srv/iso/";
+          extraConfig = "autoindex on;";
+        };
+        locations."/iso-files/" = {
+          root = cfg.tftpRoot;
+          extraConfig = "autoindex on;";
+        };
       };
 
       virtualHosts."netboot-https" = {
@@ -201,10 +263,18 @@ in
             ssl = true;
           }
         ];
-        root = "${cfg.tftpRoot}/nixos";
+        root = cfg.tftpRoot;
         addSSL = true;
         sslCertificate = "${netbootSslCert}/cert.pem";
         sslCertificateKey = "${netbootSslCert}/key.pem";
+        locations."/iso/" = {
+          alias = "/srv/iso/";
+          extraConfig = "autoindex on;";
+        };
+        locations."/iso-files/" = {
+          root = cfg.tftpRoot;
+          extraConfig = "autoindex on;";
+        };
       };
     };
 
@@ -228,11 +298,14 @@ in
     systemd.tmpfiles.rules = [
       "d ${cfg.tftpRoot} 0755 root root -"
       "d ${cfg.tftpRoot}/nixos 0755 root root -"
-      "L+ ${cfg.tftpRoot}/${bootFile} - - - - ${ipxeWithCert}/ipxe.efi"
+      "d ${cfg.tftpRoot}/iso-files 0755 root root -"
+      "d /srv/iso 0755 root root -"
+      "L+ ${cfg.tftpRoot}/${bootFile} - - - - ${ipxeBoot}/ipxe-legacy.efi"
       "L+ ${cfg.tftpRoot}/autoexec.ipxe - - - - ${autoexecScript}"
+      "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootSslCert}/cert.pem"
       "L+ ${cfg.tftpRoot}/nixos/bzImage - - - - ${build.kernel}/${kernelTarget}"
       "L+ ${cfg.tftpRoot}/nixos/initrd - - - - ${build.netbootRamdisk}/initrd"
-      "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootSslCert}/cert.pem"
+      "L+ ${cfg.tftpRoot}/wrapper-initrd.gz - - - - ${wrapperInitrd}/initrd.gz"
     ];
 
     networking.firewall.allowedUDPPorts = [ 67 69 ];
