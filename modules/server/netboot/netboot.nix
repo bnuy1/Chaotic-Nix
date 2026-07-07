@@ -11,14 +11,24 @@ let
   netbootSslCert = pkgs.runCommand "netboot-ssl-cert" {
     nativeBuildInputs = [ pkgs.openssl ];
     listenIp = cfg.listenIp;
+    serverName = if cfg.serverName != null then cfg.serverName else "";
   } ''
     mkdir -p $out
-    openssl req -x509 -newkey rsa:4096 \
-      -keyout $out/key.pem \
-      -out $out/cert.pem \
-      -days 3650 -nodes \
-      -subj "/CN=$listenIp" \
-      -addext "subjectAltName=IP:$listenIp"
+    if [ -n "$serverName" ]; then
+      openssl req -x509 -newkey rsa:4096 \
+        -keyout $out/key.pem \
+        -out $out/cert.pem \
+        -days 3650 -nodes \
+        -subj "/CN=$serverName" \
+        -addext "subjectAltName=DNS:$serverName,IP:$listenIp"
+    else
+      openssl req -x509 -newkey rsa:4096 \
+        -keyout $out/key.pem \
+        -out $out/cert.pem \
+        -days 3650 -nodes \
+        -subj "/CN=$listenIp" \
+        -addext "subjectAltName=IP:$listenIp"
+    fi
     chmod 644 $out/cert.pem
     chmod 644 $out/key.pem
   '';
@@ -27,7 +37,6 @@ let
     enableDefaultPlatformTargets = false;
     additionalTargets = {
       "bin-x86_64-efi/ipxe-legacy.efi" = null;
-      "bin/undionly.kpxe" = null;
     };
     firmwareBinary = "ipxe-legacy.efi";
     additionalOptions = [ "CONSOLE_CMD" ];
@@ -38,6 +47,9 @@ let
       "CERT=${netbootSslCert}/cert.pem"
       "TRUST=${netbootSslCert}/cert.pem"
     ];
+    installPhase = (old.installPhase or "") + ''
+      rm -f $out/undionly.kpxe.0
+    '';
   });
 
   wgKeys = if builtins.pathExists ./wg-keys.nix then import ./wg-keys.nix else null;
@@ -113,14 +125,19 @@ let
     :start
     set menu-timeout 15000
     set menu-default nixos
-    cpair --foreground 11 1
-    cpair --foreground 15 2
-    cpair --foreground 5 3
+    cpair --foreground 7 --background 4 0
+    cpair --foreground 7 --background 4 1
+    cpair --foreground 0 --background 7 2
+    cpair --foreground 6 --background 4 3
 
-    menu bnuy boot
+    menu bnuy boot [''${net0/ip}]
+    item --gap --
+    item --gap --
+    item --gap --
     item --key n nixos    [n] NixOS Kexec (SSH + WireGuard VPN)
     item --key i isos     [i] Boot ISO from /srv/iso/
-    item --gap -- ----------------------------------------
+    item --key u sysutils [u] Sysutils (hardware / recovery / antivirus)
+    item --gap --     --------------------------------
     item --key s shell    [s] iPXE Shell
     item --key r reboot   [r] Reboot
     item --key e exit     [e] Exit to BIOS
@@ -133,6 +150,10 @@ let
 
     :isos
     chain https://${cfg.listenIp}:${toString cfg.httpsPort}/iso-menu.ipxe || goto start
+    goto start
+
+    :sysutils
+    chain https://${cfg.listenIp}:${toString cfg.httpsPort}/sysutils.ipxe || goto start
     goto start
 
     :shell
@@ -181,6 +202,17 @@ in
       description = "IP address the netboot server listens on";
     };
 
+    serverName = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Optional domain name for external access.
+        When set, autoexec URLs use this instead of listenIp,
+        and the SSL cert includes DNS:serverName alongside IP:listenIp.
+        Leave null for pure local/offline IP-based operation.
+      '';
+    };
+
     dhcpRange = lib.mkOption {
       type = lib.types.str;
       default = "192.168.1.100,192.168.1.150,12h";
@@ -213,11 +245,13 @@ in
   };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = [ ipxeBoot (pkgs.runCommand "gen-menu.sh" { } ''
-      mkdir -p $out/bin
-      cp ${./gen-menu.sh} $out/bin/gen-menu.sh
-      chmod +x $out/bin/gen-menu.sh
-    '') ];
+    environment.systemPackages = let
+      genMenuSh = pkgs.runCommand "gen-menu.sh" { } ''
+        mkdir -p $out/bin
+        cp ${./gen-menu.sh} $out/bin/gen-menu.sh
+        chmod +x $out/bin/gen-menu.sh
+      '';
+    in [ ipxeBoot genMenuSh pkgs.xorriso pkgs.p7zip pkgs.libarchive ];
 
     services.dnsmasq = {
       enable = true;
@@ -225,7 +259,9 @@ in
         interface = cfg.interface;
         port = 0;
         dhcp-range = cfg.dhcpRange;
-        dhcp-match = "set:ipxe,175";
+        dhcp-match = [
+          "set:ipxe,175"
+        ];
         dhcp-boot = [
           "tag:!ipxe,${bootFile}"
           "tag:ipxe,autoexec.ipxe"
@@ -300,12 +336,17 @@ in
       "d ${cfg.tftpRoot}/nixos 0755 root root -"
       "d ${cfg.tftpRoot}/iso-files 0755 root root -"
       "d /srv/iso 0755 root root -"
+      "d /srv/iso/sysutils 0755 root root -"
+      "d /srv/iso/sysutils/hardware 0755 root root -"
+      "d /srv/iso/sysutils/recovery 0755 root root -"
+      "d /srv/iso/sysutils/antivirus 0755 root root -"
       "L+ ${cfg.tftpRoot}/${bootFile} - - - - ${ipxeBoot}/ipxe-legacy.efi"
       "L+ ${cfg.tftpRoot}/autoexec.ipxe - - - - ${autoexecScript}"
       "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootSslCert}/cert.pem"
       "L+ ${cfg.tftpRoot}/nixos/bzImage - - - - ${build.kernel}/${kernelTarget}"
       "L+ ${cfg.tftpRoot}/nixos/initrd - - - - ${build.netbootRamdisk}/initrd"
       "L+ ${cfg.tftpRoot}/wrapper-initrd.gz - - - - ${wrapperInitrd}/initrd.gz"
+      "L+ ${cfg.tftpRoot}/wimboot - - - - ${pkgs.wimboot}/share/wimboot/wimboot.x86_64.efi"
     ];
 
     networking.firewall.allowedUDPPorts = [ 67 69 ];
