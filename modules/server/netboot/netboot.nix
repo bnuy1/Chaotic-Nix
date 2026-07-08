@@ -117,7 +117,7 @@ let
   };
 
   build = netbootConfig.config.system.build;
-  kernelTarget = netbootConfig.pkgs.stdenv.hostPlatform.linux-kernel.target;
+  kernelFile = netbootConfig.config.boot.kernelPackages.kernel.target;
 
   autoexecScript = pkgs.writeText "autoexec.ipxe" ''
     #!ipxe
@@ -345,7 +345,7 @@ in
       "L+ ${cfg.tftpRoot}/${bootFile} - - - - ${ipxeBoot}/ipxe-legacy.efi"
       "L+ ${cfg.tftpRoot}/autoexec.ipxe - - - - ${autoexecScript}"
       "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootSslCert}/cert.pem"
-      "L+ ${cfg.tftpRoot}/nixos/bzImage - - - - ${build.kernel}/${kernelTarget}"
+      "L+ ${cfg.tftpRoot}/nixos/bzImage - - - - ${build.kernel}/${kernelFile}"
       "L+ ${cfg.tftpRoot}/nixos/initrd - - - - ${build.netbootRamdisk}/initrd"
       "L+ ${cfg.tftpRoot}/wrapper-initrd.gz - - - - ${wrapperInitrd}/initrd.gz"
       "L+ ${cfg.tftpRoot}/wimboot - - - - ${pkgs.wimboot}/share/wimboot/wimboot.x86_64.efi"
@@ -369,7 +369,7 @@ in
           "LISTEN_IP=${cfg.listenIp}"
           "HTTPS_PORT=${toString cfg.httpsPort}"
           "TFTP_ROOT=${cfg.tftpRoot}"
-          "PATH=${lib.makeBinPath [ pkgs.xorriso pkgs.p7zip pkgs.libarchive pkgs.bash ]}"
+          "PATH=${lib.makeBinPath [ pkgs.xorriso pkgs.p7zip pkgs.libarchive pkgs.bash pkgs.coreutils pkgs.gnugrep pkgs.gnused pkgs.iproute2 pkgs.gawk ]}"
         ];
       };
       script = ''
