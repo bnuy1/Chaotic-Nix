@@ -30,7 +30,7 @@ let
         -addext "subjectAltName=IP:$listenIp"
     fi
     chmod 644 $out/cert.pem
-    chmod 644 $out/key.pem
+    chmod 640 $out/key.pem
   '';
 
   ipxeBase = pkgs.ipxe.override {
@@ -177,14 +177,21 @@ let
     find . | cpio -o -H newc | gzip > $out/initrd.gz
   '';
 
+  genMenuSh = pkgs.runCommand "gen-menu.sh" { } ''
+    mkdir -p $out/bin
+    cp ${./gen-menu.sh} $out/bin/gen-menu.sh
+    chmod +x $out/bin/gen-menu.sh
+  '';
+
 in
 {
   imports = [
     ../vpn
   ];
 
-  options.services.netboot = {
-    enable = lib.mkOption {
+  options = {
+    services.netboot = {
+      enable = lib.mkOption {
       type = lib.types.bool;
       default = false;
       description = "Enable PXE netboot server (DHCP + TFTP + HTTPS boot files)";
@@ -243,15 +250,10 @@ in
       description = "Extra packages to include in the netboot image";
     };
   };
+  };
 
   config = lib.mkIf cfg.enable {
-    environment.systemPackages = let
-      genMenuSh = pkgs.runCommand "gen-menu.sh" { } ''
-        mkdir -p $out/bin
-        cp ${./gen-menu.sh} $out/bin/gen-menu.sh
-        chmod +x $out/bin/gen-menu.sh
-      '';
-    in [ ipxeBoot genMenuSh pkgs.xorriso pkgs.p7zip pkgs.libarchive ];
+    environment.systemPackages = [ ipxeBoot genMenuSh pkgs.xorriso pkgs.p7zip pkgs.libarchive ];
 
     services.dnsmasq = {
       enable = true;
@@ -354,5 +356,34 @@ in
       cfg.httpPort
       cfg.httpsPort
     ];
+
+    systemd.services.gen-netboot-menu = {
+      description = "Regenerate netboot ISO menu";
+      after = [ "network.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        User = "root";
+        Environment = [
+          "ISO_DIR=/srv/iso"
+          "OUTPUT=/srv/tftp/iso-menu.ipxe"
+          "LISTEN_IP=${cfg.listenIp}"
+          "HTTPS_PORT=${toString cfg.httpsPort}"
+          "TFTP_ROOT=${cfg.tftpRoot}"
+          "PATH=${lib.makeBinPath [ pkgs.xorriso pkgs.p7zip pkgs.libarchive pkgs.bash ]}"
+        ];
+      };
+      script = ''
+        ${pkgs.bash}/bin/bash ${genMenuSh}/bin/gen-menu.sh
+      '';
+    };
+
+    systemd.timers.gen-netboot-menu = {
+      description = "Daily netboot ISO menu regeneration";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+      };
+    };
   };
 }

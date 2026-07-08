@@ -66,7 +66,6 @@ in
     ++ lib.optionals dm.graphical [
       # GUI
       kdePackages.kate
-      alvr
       krita
       gnome-multi-writer
       pavucontrol

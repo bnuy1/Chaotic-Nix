@@ -2,6 +2,7 @@
 
 let
   defaultLocale = vars.locale or "en_US.UTF-8";
+  isHeadless = lib.hasSuffix "-headless" (vars.displayManager or "");
 in
 {
   options.custom.allowUnfreePackages = lib.mkOption {
@@ -16,7 +17,7 @@ in
     nixpkgs.config.allowUnfreePredicate = pkg:
       builtins.elem (lib.getName pkg) config.custom.allowUnfreePackages;
 
-    nixpkgs.config.permittedInsecurePackages = [
+    nixpkgs.config.permittedInsecurePackages = lib.optionals (!isHeadless) [
       "ventoy-1.1.07"
     ];
 
@@ -60,19 +61,19 @@ in
     services.upower.enable = true;
 
     # File manager mounting support (USB drives, etc.)
-    services.gvfs.enable = true;
-    services.udisks2.enable = true;
+    services.gvfs.enable = !isHeadless;
+    services.udisks2.enable = !isHeadless;
     security.polkit.enable = true;
     programs.thunar.enable = (vars.fileManager or null) == "thunar";
-    boot.supportedFilesystems = [ "exfat" ];
-    boot.kernelModules = [ "exfat" "usb_storage" "uas" "sd_mod" ];
+    boot.supportedFilesystems = lib.optionals (!isHeadless) [ "exfat" ];
+    boot.kernelModules = lib.optionals (!isHeadless) [ "exfat" "usb_storage" "uas" "sd_mod" ];
 
     services.fstrim.enable = true;
 
-    hardware.enableRedistributableFirmware = true;
-    hardware.firmware = with pkgs; [
+    hardware.enableRedistributableFirmware = !isHeadless;
+    hardware.firmware = lib.optionals (!isHeadless) (with pkgs; [
       linux-firmware
-    ];
+    ]);
 
     # Kernel hardening
     security.lockKernelModules = true;
@@ -111,11 +112,10 @@ in
         "nix-command"
         "flakes"
       ];
-      auto-optimise-store = true;
       min-free = "2G";
       max-free = "10G";
       trusted-users = [ "root" "@wheel" ];
-      allowed-users = [ "*" ];
+      allowed-users = if isHeadless then [ "@wheel" ] else [ "*" ];
       substituters = [
         "https://cache.nixos.org"
         "https://nix-community.cachix.org"
@@ -137,8 +137,8 @@ in
 
     # Enable sound with pipewire.
     services.pulseaudio.enable = false;
-    security.rtkit.enable = true;
-    services.pipewire = {
+    security.rtkit.enable = !isHeadless;
+    services.pipewire = lib.mkIf (!isHeadless) {
       enable = true;
       alsa.enable = true;
       alsa.support32Bit = true;

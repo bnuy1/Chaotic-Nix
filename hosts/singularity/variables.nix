@@ -67,9 +67,8 @@
   steamEnable = false;
   sunshineEnable = false;
 
-  btrfs = {
-    compress = "zstd"; # "zstd", "lzo", "zlib", "none"
-    mountOptions = [ "noatime" ];
+  zfs = {
+    compress = "zstd";
   };
 
   snapshots = {

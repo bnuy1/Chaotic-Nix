@@ -24,7 +24,10 @@ in
     };
 
     enableIPv6 = true;
-    nameservers = [ "9.9.9.9" ];
+    nameservers = [
+      "9.9.9.9"
+      "1.1.1.1"
+    ];
     #nameservers = [ "192.168.1.99" ];
 
     wireless.iwd = {
@@ -100,8 +103,15 @@ in
   };
 
   # Open ports in the firewall.           ssh
-  networking.firewall.allowedTCPPorts = [ sshPort 5432 ];
-  networking.firewall.allowedUDPPorts = [
+  networking.firewall.allowedTCPPorts = [
+    sshPort
+  ]
+  ++ lib.optionals (vars.sunshineEnable or false) [
+    47989
+    47990
+  ]
+  ++ lib.optionals (vars.rsyncPort or false) [ 5432 ];
+  networking.firewall.allowedUDPPorts = lib.optionals (vars.sunshineEnable or false) [
     47998
     47999
     48000
@@ -113,7 +123,7 @@ in
     maxretry = 5;
     ignoreIP = [
       "127.0.0.1/8"
-      "192.168.0.0/24"
+      "192.168.1.0/24"
     ];
   };
 }

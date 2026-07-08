@@ -1,0 +1,5 @@
+*.bak
+*.backup
+host-keys.nix
+wg-keys.nix
+result

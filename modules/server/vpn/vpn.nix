@@ -106,6 +106,13 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        ProtectSystem = "strict";
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectHome = true;
+        CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+        RestrictAddressFamilies = [ "AF_NETLINK" "AF_UNIX" ];
+        MemoryDenyWriteExecute = true;
       };
       script = let
         hostKeyArg = if cfg.host.privateKeyFile != null then

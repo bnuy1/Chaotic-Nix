@@ -17,6 +17,23 @@ let
   rootOpts = rootFs.options or [];
   rootSubvol = subvolFromOpts rootOpts;
 
+  zfsMounts = lib.filterAttrs (name: fs: fs.fsType or "" == "zfs") config.fileSystems;
+
+  sanoidDatasets = lib.listToAttrs (builtins.concatMap (mountpoint:
+    let
+      fs = zfsMounts.${mountpoint};
+      dataset = fs.device or null;
+    in
+    if dataset != null then [{
+      name = dataset;
+      value = {
+        template = if builtins.elem mountpoint snapExclude then "none" else "default";
+        recursive = true;
+        process_children_only = true;
+      };
+    }] else []
+  ) (builtins.attrNames zfsMounts));
+
   btrfsMounts = lib.filterAttrs (name: fs: fs.fsType or "" == "btrfs") config.fileSystems;
 
   # Use the root mount point as the btrbk volume (not the block device),
@@ -84,6 +101,7 @@ in
           monthly = ret.monthly;
           yearly  = ret.yearly;
         };
+        datasets = sanoidDatasets;
       };
     })
 

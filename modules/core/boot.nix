@@ -7,6 +7,7 @@ let
     stable = pkgs.linuxPackages;
     lts = pkgs.linuxPackages_6_6;
   };
+  isHeadless = lib.hasSuffix "-headless" (vars.displayManager or "");
 
   lonePlymouthTheme = pkgs.stdenv.mkDerivation {
     name = "lone-plymouth-theme";
@@ -41,7 +42,7 @@ in
 
   boot.kernelParams = [
     "quiet"
-    "splash"
+  ] ++ lib.optionals (!isHeadless) [ "splash" ] ++ [
     "slab_nomerge"
     "init_on_alloc=1"
     "init_on_free=1"
@@ -52,7 +53,7 @@ in
   # failures during the WPA 4-way handshake with wpa_supplicant.
   boot.extraModprobeConfig = "options iwlwifi swcrypto=1";
 
-  boot.plymouth = {
+  boot.plymouth = lib.mkIf (!isHeadless) {
     enable = true;
     themePackages = [ lonePlymouthTheme ];
     theme = lib.mkForce "lone";

@@ -40,6 +40,8 @@ in
     backend = "docker";
     containers.velocity = {
       image = "itzg/mc-proxy";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       ports = [
         "25565:25565"
         "19132:19132/udp"
@@ -67,6 +69,8 @@ in
 
     containers.minecraft-survival = {
       image = "itzg/minecraft-server";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       # getting secrets to work is a bitch
       environmentFiles = [
         config.sops.secrets."minecraft_env".path
@@ -130,6 +134,8 @@ in
     };
     containers.minecraft-lab = {
       image = "itzg/minecraft-server";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       # NO PORTS EXPOSED.
       environmentFiles = [ config.sops.secrets."minecraft_env".path ];
       extraOptions = [
@@ -185,6 +191,8 @@ in
 
     containers.minecraft-creative = {
       image = "itzg/minecraft-server";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       # getting secrets to work is a bitch
       environmentFiles = [
         config.sops.secrets."minecraft_env".path
@@ -247,6 +255,8 @@ in
 
     containers.minecraft-raina = {
       image = "itzg/minecraft-server:java8";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       # getting secrets to work is a bitch
       environmentFiles = [
         config.sops.secrets."minecraft_env".path
@@ -307,6 +317,8 @@ in
 
     containers.mc-backup = {
       image = "itzg/mc-backup";
+      capDrop = [ "ALL" ];
+      securityOpt = [ "no-new-privileges:true" ];
       # Local network for docker containers
       extraOptions = [
         "--network=mc-net"

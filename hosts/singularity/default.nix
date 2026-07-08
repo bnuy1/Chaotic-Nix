@@ -9,4 +9,6 @@
   ];
 
   services.pterodactyl.listenIP = "192.168.1.166";
+
+  networking.hostId = "deadbeef";
 }

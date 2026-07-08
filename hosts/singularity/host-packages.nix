@@ -15,6 +15,7 @@
     mtr
     nftables
     nmap
+    sbctl # Secure Boot key management (lanzaboote)
     socat
     strace
     tcpdump

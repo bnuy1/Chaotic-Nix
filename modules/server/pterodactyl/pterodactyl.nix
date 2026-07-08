@@ -9,13 +9,18 @@
 let
   cfg = config.services.pterodactyl;
 
-  php = pkgs.php83.withExtensions ({ enabled, all }: with all; enabled ++ [
-    bcmath
-    gd
-    pdo_mysql
-    posix
-    zip
-  ]);
+  php = pkgs.php83.withExtensions (
+    { enabled, all }:
+    with all;
+    enabled
+    ++ [
+      bcmath
+      gd
+      pdo_mysql
+      posix
+      zip
+    ]
+  );
 
   wings = pkgs.stdenv.mkDerivation {
     pname = "wings";
@@ -37,7 +42,8 @@ in
       default = true;
       description = "Enable Pterodactyl game server panel and Wings daemon";
     };
-
+    # Please note this was attempted but not successfull, this is not a good example of good nixos code
+    # I included technitium to potentially do this in the future >:3
     domain = lib.mkOption {
       type = lib.types.str;
       default = "pterodactyl.${networkingHostname}.local";
@@ -111,9 +117,9 @@ in
       group = "pterodactyl";
       home = cfg.dataDir;
       createHome = true;
+      extraGroups = [ "docker" ];
     };
     users.groups.pterodactyl = { };
-    users.users.nginx.extraGroups = [ "pterodactyl" ];
 
     systemd.tmpfiles.settings."pterodactyl-data" = {
       "${cfg.dataDir}" = {
@@ -122,7 +128,21 @@ in
           user = "pterodactyl";
           group = "pterodactyl";
         };
-        z = {
+        Z = {
+          mode = "0750";
+          user = "pterodactyl";
+          group = "pterodactyl";
+        };
+      };
+      "${cfg.dataDir}/public" = {
+        Z = {
+          mode = "0755";
+          user = "pterodactyl";
+          group = "pterodactyl";
+        };
+      };
+      "/etc/pterodactyl" = {
+        d = {
           mode = "0750";
           user = "pterodactyl";
           group = "pterodactyl";
@@ -135,10 +155,14 @@ in
       package = pkgs.mariadb;
       dataDir = "/var/lib/mysql-pterodactyl";
       ensureDatabases = [ cfg.dbName ];
-      ensureUsers = [{
-        name = cfg.dbUser;
-        ensurePermissions = { "${cfg.dbName}.*" = "ALL PRIVILEGES"; };
-      }];
+      ensureUsers = [
+        {
+          name = cfg.dbUser;
+          ensurePermissions = {
+            "${cfg.dbName}.*" = "ALL PRIVILEGES";
+          };
+        }
+      ];
     };
 
     systemd.tmpfiles.settings."pterodactyl-mysql" = {
@@ -153,6 +177,7 @@ in
 
     services.redis.servers.pterodactyl = {
       enable = true;
+      bind = "127.0.0.1";
       port = 6379;
     };
 
@@ -176,7 +201,13 @@ in
       description = "Generate self-signed SSL cert for Pterodactyl";
       before = [ "nginx.service" ];
       wantedBy = [ "multi-user.target" ];
-      serviceConfig.Type = "oneshot";
+      serviceConfig = {
+        Type = "oneshot";
+        ProtectSystem = "strict";
+        ReadWritePaths = [ "/var/lib/pterodactyl" ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+      };
       script = ''
         mkdir -p /var/lib/pterodactyl/ssl
         if [ ! -f /var/lib/pterodactyl/ssl/key.pem ]; then
@@ -251,8 +282,14 @@ in
 
     systemd.services.pterodactyl-set-db-password = {
       description = "Set Pterodactyl database user password from SOPS";
-      after = [ "mysql.service" "sops-nix.service" ];
-      wants = [ "mysql.service" "sops-nix.service" ];
+      after = [
+        "mysql.service"
+        "sops-nix.service"
+      ];
+      wants = [
+        "mysql.service"
+        "sops-nix.service"
+      ];
       wantedBy = [ "multi-user.target" ];
       path = [ pkgs.mariadb ];
       serviceConfig = {
@@ -260,6 +297,10 @@ in
         RemainAfterExit = true;
         Restart = "on-failure";
         RestartSec = 5;
+        ProtectSystem = "strict";
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectHome = true;
       };
       script = ''
         DB_PASS=$(cat ${config.sops.secrets."pterodactyl/db_password".path})
@@ -275,35 +316,43 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        ProtectSystem = "strict";
+        ReadWritePaths = [ cfg.dataDir ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectHome = true;
       };
       script = ''
-        DB_PASS=$(cat ${config.sops.secrets."pterodactyl/db_password".path})
-        APP_KEY=$(cat ${config.sops.secrets."pterodactyl/app_key".path})
+                DB_PASS=$(cat ${config.sops.secrets."pterodactyl/db_password".path})
+                APP_KEY=$(cat ${config.sops.secrets."pterodactyl/app_key".path})
 
-        mkdir -p "${cfg.dataDir}"
-        cat > "${cfg.dataDir}/.env" << EOF
-APP_ENV=production
-APP_DEBUG=false
-APP_KEY=$APP_KEY
-APP_URL=https://${cfg.listenIP}:${toString cfg.panelPort}
+                mkdir -p "${cfg.dataDir}"
+                cat > "${cfg.dataDir}/.env" << EOF
+        APP_ENV=production
+        APP_DEBUG=false
+        APP_KEY=$APP_KEY
+        APP_URL=https://${cfg.listenIP}:${toString cfg.panelPort}
 
-DB_DATABASE=${cfg.dbName}
-DB_HOST=localhost
-DB_PORT=3306
-DB_USERNAME=${cfg.dbUser}
-DB_PASSWORD=$DB_PASS
+        DB_DATABASE=${cfg.dbName}
+        DB_HOST=localhost
+        DB_PORT=3306
+        DB_USERNAME=${cfg.dbName}
+        DB_PASSWORD=$DB_PASS
 
-REDIS_HOST=localhost
-REDIS_PORT=6379
+        REDIS_HOST=127.0.0.1
+        REDIS_PORT=6379
 
-CACHE_DRIVER=redis
-SESSION_DRIVER=redis
-QUEUE_CONNECTION=redis
-EOF
+        CACHE_DRIVER=redis
+        SESSION_DRIVER=redis
+        QUEUE_CONNECTION=redis
+        RECAPTCHA_ENABLED=false
+        EOF
 
-        chmod 750 "${cfg.dataDir}"
-        chmod 755 "${cfg.dataDir}/public"
-        chown pterodactyl:pterodactyl "${cfg.dataDir}/.env"
+                chmod 750 "${cfg.dataDir}"
+                chmod 755 "${cfg.dataDir}/public"
+                find "${cfg.dataDir}/public" -type d -exec chmod 755 {} \;
+                find "${cfg.dataDir}/public" -type f -exec chmod 644 {} \;
+                chown pterodactyl:pterodactyl "${cfg.dataDir}/.env"
       '';
     };
 
@@ -314,7 +363,11 @@ EOF
         "redis-pterodactyl.service"
         "pterodactyl-env.service"
       ];
-      wants = [ "mysql.service" "redis-pterodactyl.service" "pterodactyl-env.service" ];
+      wants = [
+        "mysql.service"
+        "redis-pterodactyl.service"
+        "pterodactyl-env.service"
+      ];
       wantedBy = [ "multi-user.target" ];
       path = [ php ];
       serviceConfig = {
@@ -325,6 +378,19 @@ EOF
         Restart = "on-failure";
         RestartSec = 10;
         ExecCondition = "${pkgs.bash}/bin/bash -c 'test -f ${cfg.dataDir}/artisan'";
+        ProtectSystem = "strict";
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectHome = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        SystemCallArchitectures = "native";
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+        ];
+        MemoryDenyWriteExecute = true;
       };
     };
 
@@ -335,22 +401,83 @@ EOF
       ];
     };
 
+    systemd.services.pterodactyl-migrate = {
+      description = "Run Pterodactyl database migrations";
+      after = [
+        "mysql.service"
+        "redis-pterodactyl.service"
+        "pterodactyl-env.service"
+        "pterodactyl-set-db-password.service"
+      ];
+      wants = [
+        "mysql.service"
+        "redis-pterodactyl.service"
+      ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ php ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        User = "pterodactyl";
+        Group = "pterodactyl";
+        WorkingDirectory = cfg.dataDir;
+        ProtectSystem = "strict";
+        ReadWritePaths = [ cfg.dataDir ];
+        PrivateTmp = true;
+        ProtectHome = true;
+        NoNewPrivileges = true;
+      };
+      script = ''
+        for i in {1..10}; do
+          ${php}/bin/php ${cfg.dataDir}/artisan migrate --force && break
+          sleep 2
+        done
+        ${php}/bin/php ${cfg.dataDir}/artisan db:seed --force
+      '';
+    };
+
     systemd.services.wings = {
       description = "Pterodactyl Wings Daemon";
-      after = [ "docker.service" "sops-nix.service" ];
+      after = [
+        "docker.service"
+        "sops-nix.service"
+      ];
       wants = [ "docker.service" ];
       wantedBy = [ "multi-user.target" ];
       path = [ wings ];
       serviceConfig = {
-        User = "root";
+        User = "pterodactyl";
+        Group = "pterodactyl";
         WorkingDirectory = "/etc/pterodactyl";
         ExecStart = "${wings}/bin/wings";
         Restart = "always";
         RestartSec = 10;
+        ProtectSystem = "strict";
+        ReadWritePaths = [ "/etc/pterodactyl" ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        ProtectHome = true;
+        ProtectKernelTunables = true;
+        ProtectControlGroups = true;
+        SystemCallArchitectures = "native";
+        RestrictAddressFamilies = [
+          "AF_UNIX"
+          "AF_INET"
+          "AF_INET6"
+          "AF_NETLINK"
+        ];
+        CapabilityBoundingSet = [
+          "CAP_NET_BIND_SERVICE"
+          "CAP_NET_ADMIN"
+          "CAP_NET_RAW"
+          "CAP_DAC_OVERRIDE"
+          "CAP_FOWNER"
+          "CAP_CHOWN"
+          "CAP_SETUID"
+          "CAP_SETGID"
+        ];
+        MemoryDenyWriteExecute = true;
       };
-      preStart = ''
-        mkdir -p /etc/pterodactyl
-      '';
     };
 
     services.technitium = lib.mkIf cfg.configureDNS {

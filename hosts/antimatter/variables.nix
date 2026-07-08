@@ -13,6 +13,7 @@
       extraGroups = [
         "networkmanager"
         "wheel"
+        "realtime"
       ];
       shell = "fish";
       sshKeys = [ ];
