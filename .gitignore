@@ -2,4 +2,5 @@
 *.backup
 host-keys.nix
 wg-keys.nix
+client-priv-key
 result
