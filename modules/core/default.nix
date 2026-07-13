@@ -17,6 +17,7 @@
     ./displayManager
     ./storage.nix
     ./snapshots.nix
+    ./swap-ssh.nix
     ../../modules/hardware/gpu
   ];
 }

@@ -88,7 +88,7 @@
   gpuDrivers = [ "amd" ];
   rocmEnable = true;
   nvidiaPowerManagement = false;
-  powerManagementUtility = "power-profiles-daemon";
+  powerManagementUtility = null;
 
   steamEnable = true;
   sunshineEnable = true;

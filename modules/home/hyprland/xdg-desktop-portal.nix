@@ -1,9 +1,12 @@
 { ... }:
 
 {
-  # User-level portal preference: prioritize Hyprland, fallback to GTK
+  #Hyprland GTK fallback
   xdg.portal = {
     enable = true;
-    config.common.default = [ "hyprland" "gtk" ];
+    config.common.default = [
+      "hyprland"
+      "gtk"
+    ];
   };
 }

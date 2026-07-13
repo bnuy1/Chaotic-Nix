@@ -26,7 +26,6 @@ in
   boot.loader = {
     efi.canTouchEfiVariables = true;
     timeout = 2;
-    systemd-boot.enable = lib.mkForce false;
   };
 
   boot.lanzaboote = {
@@ -41,7 +40,9 @@ in
   boot.initrd.systemd.enable = true;
 
   boot.kernelParams = [
-    "quiet"
+    "preempt=full"
+    "threadirqs"
+    "amdgpu.dc=1"
   ] ++ lib.optionals (!isHeadless) [ "splash" ] ++ [
     "slab_nomerge"
     "init_on_alloc=1"
@@ -59,5 +60,5 @@ in
     theme = lib.mkForce "lone";
   };
 
-  boot.consoleLogLevel = 0;
+  boot.consoleLogLevel = 4;
 }

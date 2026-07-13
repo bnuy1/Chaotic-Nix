@@ -74,9 +74,8 @@ let
     else lib.strings.trim (builtins.readFile "${fallbackClientWgKeys}/public");
   hostPrivateKeyFile = if wgKeys != null then wgKeys.hostPrivateKeyFile
     else "${fallbackHostWgKeys}/private";
-  clientPrivateKey = if builtins.pathExists ./client-priv-key
-    then lib.strings.trim (builtins.readFile ./client-priv-key)
-    else lib.strings.trim (builtins.readFile "${fallbackClientWgKeys}/private");
+  clientPrivateKeyFile = if wgKeys != null then wgKeys.clientPrivateKeyFile
+    else "${fallbackClientWgKeys}/private";
 
   evalConfig = import "${toString pkgs.path}/nixos/lib/eval-config.nix";
   netbootConfig = evalConfig {
@@ -92,7 +91,7 @@ let
 
         networking.wireguard.interfaces.wg0 = {
           ips = [ "10.0.0.2/24" ];
-          privateKey = clientPrivateKey;
+          privateKeyFile = clientPrivateKeyFile;
           peers = [
             {
               publicKey = hostWgPublicKey;
@@ -329,12 +328,6 @@ in
         {
           publicKey = clientWgPublicKey;
           allowedIPs = [ "10.0.0.2/32" ];
-          persistentKeepalive = 25;
-        }
-        {
-          publicKey = "2GO6ZDhDiQfxfHICmEuIUKfGr+MpVsM01XSJ115PfxE=";
-          allowedIPs = [ "10.0.0.2/32" ];
-          endpoint = "192.168.1.167:51820";
           persistentKeepalive = 25;
         }
       ];

@@ -27,24 +27,18 @@ fi
 hostPub=$(cat "$KEYDIR/host.pub")
 clientPub=$(cat "$KEYDIR/client.pub")
 
-# Copy client private key to flake source (.gitignore'd, force-added to git)
-cp "$KEYDIR/client.priv" "$DIR/client-priv-key"
-echo "  + copied client private key to $DIR/client-priv-key"
-
-git -C "$DIR" add --force client-priv-key
-echo "  + force-added client-priv-key to git index"
-
 cat > "$OUT" <<EOF
 {
   hostPublicKey = "$hostPub";
   clientPublicKey = "$clientPub";
   hostPrivateKeyFile = "$KEYDIR/host.priv";
+  clientPrivateKeyFile = "$KEYDIR/client.priv";
 }
 EOF
 
 echo "[+] wrote $OUT"
 
-# Force-add wg-keys.nix to git so it's in the flake source
+# Force-add to git so it's in the flake source (same pattern as host-keys.nix)
 if git -C "$DIR" ls-files --error-unmatch wg-keys.nix &>/dev/null; then
   echo "  = wg-keys.nix already tracked"
 else

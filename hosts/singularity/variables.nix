@@ -14,7 +14,10 @@
         "wheel"
       ];
       shell = "fish";
+      initialPassword = "password";
       sshKeys = [
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJGAEcER9ynK7Fc34QKLC1441KIj4AJh6Ey6W6O6FW8S"
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFNohenCiYWNpZXB05tskL/aP3aYWYtmO8PTz2INP0Up"
       ];
 
       homeDirectory = null;
@@ -29,7 +32,7 @@
     }
   ];
 
-  displayManager = "ly-headless";
+  displayManager = "tui-headless";
   keyboardLayout = "us";
   defaultBackroundImage = ../../assets/wallpapers/Stocking.png;
   stylixPolarity = "dark";
