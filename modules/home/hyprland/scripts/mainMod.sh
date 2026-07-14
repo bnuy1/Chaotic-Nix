@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 LAUNCHER="rofi"
-CONFIG="/etc/xdg/rofi/config.rasi"
+CONFIG="$HOME/.config/rofi/config.rasi"
 if pgrep -x $LAUNCHER >/dev/null; then
   pkill $LAUNCHER
 else

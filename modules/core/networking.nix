@@ -110,7 +110,7 @@ in
     47989
     47990
   ]
-  ++ lib.optionals (vars.rsyncPort or false) [ 5432 ];
+  ++ lib.optionals (vars.rsyncBackupEnable or false) [ 873 ];
   networking.firewall.allowedUDPPorts = lib.optionals (vars.sunshineEnable or false) [
     47998
     47999

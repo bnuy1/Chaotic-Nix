@@ -19,6 +19,12 @@ let
       extraGroups = user.extraGroups or [ ];
       shell = shells.${user.shell or "bash"};
     }
+    // lib.optionalAttrs (!(user.minimal or false)) {
+      createHome = true;
+    }
+    // lib.optionalAttrs (user ? homeDirectory && user.homeDirectory != null && user.homeDirectory != "") {
+      home = user.homeDirectory;
+    }
     // lib.optionalAttrs (user ? description && user.description != null) {
       description = user.description;
     }
@@ -45,16 +51,25 @@ in {
 
     users = builtins.listToAttrs (map (user: {
       name = user.name;
-      value = { pkgs, ... }: let
+      value = { pkgs, ... }:
+        # Minimal users (e.g. service accounts) get no home-manager config
+        if user.minimal or false then {
+          home.username = user.name;
+          home.homeDirectory =
+            if user ? homeDirectory && user.homeDirectory != null && user.homeDirectory != ""
+            then user.homeDirectory
+            else "/home/${user.name}";
+          home.stateVersion = "25.11";
+        }
+        else let
           userAliases =
-            if user.minimal or false then { }
-            else if !(builtins.elem "wheel" (user.extraGroups or [ ]))
+            if !(builtins.elem "wheel" (user.extraGroups or [ ]))
             then builtins.removeAttrs systemAliases [ "nrs" ]
             else systemAliases;
         in {
           home.username = user.name;
           home.homeDirectory =
-            if user ? homeDirectory && user.homeDirectory != null
+            if user ? homeDirectory && user.homeDirectory != null && user.homeDirectory != ""
             then user.homeDirectory
             else "/home/${user.name}";
           home.stateVersion = "25.11";

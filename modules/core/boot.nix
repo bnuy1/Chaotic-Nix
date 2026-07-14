@@ -50,10 +50,6 @@ in
     "tpm_tis.interrupts=0"
   ];
 
-  # iwlwifi (Intel AX200) needs swcrypto=1 to avoid nl80211 PTK key installation
-  # failures during the WPA 4-way handshake with wpa_supplicant.
-  boot.extraModprobeConfig = "options iwlwifi swcrypto=1";
-
   boot.plymouth = lib.mkIf (!isHeadless) {
     enable = true;
     themePackages = [ lonePlymouthTheme ];

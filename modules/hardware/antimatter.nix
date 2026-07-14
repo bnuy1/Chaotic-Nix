@@ -24,6 +24,7 @@ in
       "rndis_host"
       "cdc_ether"
       "cdc_subset"
+      "snd-usb-audio"
     ];
     boot.kernelParams = [ ];
 

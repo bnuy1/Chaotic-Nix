@@ -12,9 +12,8 @@
 
   boot.initrd.kernelModules = [ "vfat" "nls_cp437" "nls_iso8859_1" ];
 
+  # LUKS swap extras (base device + allowDiscards provided by swap-ssh.nix via vars)
   boot.initrd.luks.devices."swap" = {
-    device = "/dev/disk/by-uuid/714230b7-3382-4de4-aa51-c8d66f660995";
-    allowDiscards = true;
     keyFile = "/dev/urandom";
     keyFileSize = 64;
     fallbackToPassword = false;

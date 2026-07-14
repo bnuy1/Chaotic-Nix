@@ -336,7 +336,7 @@ in
         DB_DATABASE=${cfg.dbName}
         DB_HOST=localhost
         DB_PORT=3306
-        DB_USERNAME=${cfg.dbName}
+        DB_USERNAME=${cfg.dbUser}
         DB_PASSWORD=$DB_PASS
 
         REDIS_HOST=127.0.0.1
@@ -432,7 +432,6 @@ in
           ${php}/bin/php ${cfg.dataDir}/artisan migrate --force && break
           sleep 2
         done
-        ${php}/bin/php ${cfg.dataDir}/artisan db:seed --force
       '';
     };
 

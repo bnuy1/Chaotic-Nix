@@ -14,7 +14,10 @@ let
     hw_mode=a
     channel=${toString cfg.channel}
     country_code=US
+    ieee80211n=1
+    ieee80211ax=1
     wmm_enabled=1
+    ht_capab=[HT40+][LDPC][TX-STBC][RX-STBC1]
     auth_algs=1
     wpa=2
     wpa_passphrase=${cfg.password}
@@ -107,15 +110,31 @@ in
 
       preStart = ''
         if ! ip link show Quest5G >/dev/null 2>&1; then
-          iw phy ${cfg.phy} interface add Quest5G type __ap addr ${cfg.mac}
+          PHY=""
+          for p in /sys/class/ieee80211/phy*; do
+            if grep -q mt7921 "$p/device/uevent" 2>/dev/null; then
+              PHY=$(basename "$p")
+              break
+            fi
+          done
+          if [ -z "$PHY" ]; then
+            echo "ERROR: mt7921 adapter not found"
+            exit 1
+          fi
+          iw phy "$PHY" interface add Quest5G type __ap addr ${cfg.mac}
         fi
         ip link set Quest5G up
         ip addr add ${cfg.gateway}/24 dev Quest5G 2>/dev/null || true
+        iw dev Quest5G set txpower fixed 2200 2>/dev/null || true
+        if [ -d /sys/class/net/wlan1 ]; then
+          ip link set wlan1 down 2>/dev/null || true
+        fi
       '';
 
       serviceConfig = {
         Type = "simple";
         ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.hostapd}/bin/hostapd ${hostapdConf}'";
+        ExecStartPost = "${pkgs.bash}/bin/bash -c 'sleep 2 && iw dev Quest5G set txpower fixed 2200 2>/dev/null || true && ip addr add ${cfg.gateway}/24 dev Quest5G 2>/dev/null || true'";
         ExecStop = "${pkgs.bash}/bin/bash -c 'ip link set Quest5G down 2>/dev/null || true'";
         Restart = "on-failure";
         RestartSec = 5;
@@ -130,7 +149,7 @@ in
       path = [ pkgs.dnsmasq ];
       serviceConfig = {
         Type = "simple";
-        ExecStart = "${pkgs.dnsmasq}/bin/dnsmasq --keep-in-foreground --conf-file=${dnsmasqConf}";
+        ExecStart = "${pkgs.dnsmasq}/bin/dnsmasq --keep-in-foreground --user=root --conf-file=${dnsmasqConf}";
         Restart = "on-failure";
         RestartSec = 5;
       };
@@ -144,8 +163,6 @@ in
 
     networking.firewall.trustedInterfaces = [ "Quest5G" ];
 
-    # Ensure system dnsmasq (if active, e.g. netboot) uses bind-interfaces
-    # so it only binds to its own interface, freeing port 67 for our dnsmasq.
     services.dnsmasq.settings.bind-interfaces = true;
   };
 }
