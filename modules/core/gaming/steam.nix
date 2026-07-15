@@ -52,10 +52,18 @@
       ''
   );
 
+  environment.sessionVariables = lib.mkIf (vars.steamEnable or false) {
+    RADV_DEBUG = "nocompute";
+  };
+
   # Apply recommended SteamVR settings for Linux AMD.
   # enableLinuxVulkanAsync: async Vulkan submission for lower frame latency.
   # useFacetRenderer: stabilizes frametime consistency.
+  # disableAsync: disable async reprojection — on Linux/RADV async only
+  #   corrects rotation, not translation, producing unplayable seesaw yanking.
   # Note: SteamVR may overwrite this file during safe mode resets. Rebuild to re-apply.
+  # Note: vrlink driver ignores encodeWidth/targetBandwidth from steamvr.vrsettings —
+  #   it uses its own automatic calculation based on GPU speed benchmarks.
   system.activationScripts.steamvr-vrsettings = lib.mkIf (vars.steamEnable or false) (
     let
       usersHome = map (u: u.name) (builtins.filter (u: u ? name) (vars.users or [ ]));
@@ -63,6 +71,7 @@
         steamvr = {
           enableLinuxVulkanAsync = true;
           useFacetRenderer = true;
+          disableAsync = true;
         };
       };
     in
@@ -80,6 +89,13 @@
         done
       ''
   );
+
+  # Install gamemode polkit rules and actions so gamemoded can change
+  # CPU governor without authentication (requires user in gamemode group).
+  environment.etc = lib.mkIf (vars.steamEnable or false) {
+    "polkit-1/rules.d/20-gamemode.rules".source = "${pkgs.gamemode}/share/polkit-1/rules.d/gamemode.rules";
+    "polkit-1/actions/com.feralinteractive.GameMode.policy".source = "${pkgs.gamemode}/share/polkit-1/actions/com.feralinteractive.GameMode.policy";
+  };
 
   custom.allowUnfreePackages = lib.optionals (vars.steamEnable or false) [
     "steam"

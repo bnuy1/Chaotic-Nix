@@ -139,6 +139,7 @@
   # -- Networking -------------------------------------------------------------
   sshPort = 2222; # SSH daemon port                                        (default: 2222)
   bluetoothEnable = true; # Bluetooth hardware support                     (default: true)
+  rsyncPort = null; # SSH port for rsync backup tunnel                      (default: null)
 
   # -- System -----------------------------------------------------------------
   systemFont = "iosevka"; # System monospace font                          (default: "iosevka")

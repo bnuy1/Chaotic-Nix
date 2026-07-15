@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  vars,
   ...
 }:
 let
@@ -399,7 +400,7 @@ in
 
       ExecStart = ''
         ${pkgs.rsync}/bin/rsync -avz --delete --partial --timeout=60 --bwlimit=5000 \
-          -e "${pkgs.openssh}/bin/ssh -p 5432 -o StrictHostKeyChecking=accept-new" \
+          -e "${pkgs.openssh}/bin/ssh -p ${toString vars.rsyncPort} -o StrictHostKeyChecking=accept-new" \
           /var/backups/minecraft/ \
           bnuy@mcbackup.bnuy.dev:/var/backups/remote/
       '';

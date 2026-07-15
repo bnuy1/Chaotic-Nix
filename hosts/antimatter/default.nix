@@ -8,7 +8,7 @@
   imports = [
     ./hardware-configuration.nix
     ./host-packages.nix
-    ./quest-hotspot.nix
+    ../../modules/core/gaming/vr-hotspot
     ../common-host-packages.nix
     ../../modules/hardware/antimatter.nix
   ];
