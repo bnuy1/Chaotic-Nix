@@ -98,7 +98,7 @@
   consoleKeyMap = "us"; # Console keymap                                    (default: "us")
 
   # -- Style / Theming --------------------------------------------------------
-  defaultBackroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
+  defaultBackgroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
   stylixPolarity = "dark"; # "dark" or "light"                              (default: "dark")
 
   # -- Browser / Editor -------------------------------------------------------
@@ -136,7 +136,7 @@
   dockerEnable = true; # Rootless Docker daemon + lazydocker
   podmanEnable = false; # Podman container runtime
   libvirtdEnable = true; # KVM/QEMU libvirtd daemon
-  virt-managerEnable = false; # GUI VM manager
+  virtManagerEnable = false; # GUI VM manager
 
   # -- Networking -------------------------------------------------------------
   sshPort = 2222; # SSH daemon port                                        (default: 2222)
@@ -146,7 +146,7 @@
   # -- System -----------------------------------------------------------------
   systemFont = "iosevka"; # System monospace font                          (default: "iosevka")
   locale = "en_US.UTF-8"; # System locale                                  (default: "en_US.UTF-8")
-  NonNixBinarySupport = true; # nix-ld: run non-Nix binaries               (default: true)
+  nonNixBinarySupport = true; # nix-ld: run non-Nix binaries               (default: true)
 
   # GPU Drivers
   # Valid: any combination of "intel", "amd", "nvidia"

@@ -70,11 +70,9 @@ in
       gnome-multi-writer
       pavucontrol
       arduino
-      rofi
       libnotify
       libreoffice
       pywal16
-      kitty
       (pkgs.vesktop.overrideAttrs (old: {
         postFixup = old.postFixup + ''
           wrapProgram $out/bin/vesktop --add-flags "--enable-features=WebRTCPipeWireCapturer"
@@ -97,7 +95,7 @@ in
       set -g __done_notification_urgency_level_failure normal
       set -gx MANPAGER "nvim +Man!"
       set -g __done_notify_active_window 0
-      set sponge_purge_only_on_exit true
+      set -U sponge_purge_only_on_exit true
       set -g __done_exclude 'nvim|vi|emacs|tldr|htop|top|nvtop|vim|nano|man|less'
       set -g __done_notification_command "notify-send -u low -i terminal \"\$title\" \"\$message\""
       set -U __done_notify_sound 1

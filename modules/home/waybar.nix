@@ -1,10 +1,4 @@
-{ config, lib, pkgs, ... }:
-
-let
-  c = config.stylix.base16Scheme;
-in {
-  stylix.targets.waybar.enable = true;
-
+{
   programs.waybar = {
     enable = true;
 
@@ -77,26 +71,7 @@ in {
       };
     }];
 
-    style = lib.mkForce ''
-      @define-color foreground #${c.base05};
-      @define-color background #${c.base00};
-      @define-color color0 #${c.base00};
-      @define-color color1 #${c.base08};
-      @define-color color2 #${c.base0B};
-      @define-color color3 #${c.base0A};
-      @define-color color4 #${c.base0D};
-      @define-color color5 #${c.base0E};
-      @define-color color6 #${c.base0C};
-      @define-color color7 #${c.base05};
-      @define-color color8 #${c.base03};
-      @define-color color9 #${c.base09};
-      @define-color color10 #${c.base01};
-      @define-color color11 #${c.base02};
-      @define-color color12 #${c.base04};
-      @define-color color13 #${c.base06};
-      @define-color color14 #${c.base0F};
-      @define-color color15 #${c.base07};
-
+    style = ''
       * {
           border: none;
           border-radius: 0;
@@ -108,24 +83,24 @@ in {
       window#waybar {
           background: rgba(0,0,0, 0.5);
           border-bottom: 3px solid transparent;
-          color: @foreground;
+          color: #ffffff;
       }
 
       #workspaces button {
           padding: 0 5px;
           margin: 0 3px;
-          color: @foreground;
+          color: #ffffff;
           border-bottom: 3px solid transparent;
       }
 
       #workspaces button.focused {
           background: rgba(100, 114, 125, 0.2);
-          border-bottom: 3px solid @color15;
+          border-bottom: 3px solid #ffffff;
       }
 
       #submap {
           background: transparent;
-          border-bottom: 3px solid @color15;
+          border-bottom: 3px solid #ffffff;
       }
 
       #clock, #battery, #cpu, #memory, #network, #pulseaudio, #temperature, #backlight, #idle_inhibitor {
@@ -135,11 +110,11 @@ in {
 
       #clock {
           background-color: transparent;
-          color: @foreground;
+          color: #ffffff;
       }
 
       #battery.charging {
-          color: @foreground;
+          color: #ffffff;
       }
 
       @keyframes blink {
@@ -150,7 +125,7 @@ in {
 
       #battery.warning:not(.charging) {
           background: #f53c3c;
-          color: @foreground;
+          color: #ffffff;
           animation-name: blink;
           animation-duration: 0.5s;
           animation-timing-function: linear;
@@ -160,19 +135,19 @@ in {
 
       #cpu {
           background: transparent;
-          border-bottom: 3px solid @color5;
-          color: @foreground;
+          border-bottom: 3px solid #ffffff;
+          color: #ffffff;
       }
 
       #memory {
           background: transparent;
-          border-bottom: 3px solid @color7;
-          color: @foreground;
+          border-bottom: 3px solid #ffffff;
+          color: #ffffff;
       }
 
       #network {
           background: transparent;
-          color: @foreground;
+          color: #ffffff;
       }
 
       #network.disconnected {
@@ -182,11 +157,11 @@ in {
 
       #pulseaudio {
           background: transparent;
-          color: @foreground;
+          color: #ffffff;
       }
 
       #pulseaudio.muted {
-          border-bottom: 3px solid @color1;
+          border-bottom: 3px solid #ff0000;
       }
 
       #tray {

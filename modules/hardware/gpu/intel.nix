@@ -1,7 +1,7 @@
 { lib, pkgs, config, ... }:
-with lib;
 let
   cfg = config.hardware.gpu.intel;
+  inherit (lib) mkEnableOption mkIf;
 in
 {
   options.hardware.gpu.intel = {

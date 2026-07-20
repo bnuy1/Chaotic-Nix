@@ -1,0 +1,4 @@
+keys:
+  - &host_key age169cqlzrfhr549nea59v0z9dgarkmx3spa2r82q77y2ecttnhlfkswnkr22
+creation_rules:
+  - age: *host_key

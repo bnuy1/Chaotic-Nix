@@ -1,10 +1,10 @@
 { lib, ... }:
 
 {
-  programs.kitty = lib.mkForce {
+  programs.kitty = {
     enable = true;
 
-    settings = {
+    settings = lib.mkForce {
       # Fonts
       font_family = "Iosevka";
       bold_font = "auto";
@@ -52,7 +52,6 @@
         (builtins.concatStringsSep "," mappings) + " Symbols Nerd Font";
     };
 
-    # Key mappings go here
     keybindings = {
       "ctrl+equal" = "increase_font_size";
       "ctrl+minus" = "decrease_font_size";

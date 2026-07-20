@@ -5,4 +5,5 @@ wg-keys.nix
 client-priv-key
 result
 og
+secrets/
 AUDIT.md

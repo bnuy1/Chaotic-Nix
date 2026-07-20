@@ -423,7 +423,7 @@ in
 
     settings = {
       mysqld = {
-        bind-address = "0.0.0.0";
+        bind-address = "172.19.0.1";
       };
     };
   };
@@ -464,38 +464,6 @@ in
     };
   };
 
-  systemd.services.minecraft-secret-sanitizer = {
-    description = "Clean Paper YAML duplicates and CRLF";
-    before = [ "docker-minecraft-survival.service" ];
-    after = [ "sops-nix.service" ];
-    wantedBy = [ "multi-user.target" ];
-
-    serviceConfig = {
-      Type = "oneshot";
-      User = "root";
-      # We wrap the script in ${ } to turn the derivation into a string path for ExecStart
-      ExecStart = "${pkgs.writeShellScript "minecraft-sanitizer" ''
-        # Set PATH so we don't have to use full paths for every command
-        PATH="${pkgs.gnused}/bin:${pkgs.coreutils}/bin"
-        FILE="/var/lib/minecraft/survival/config/paper-global.yml"
-
-        if [ -f "$FILE" ]; then
-          echo "Sanitizing $FILE..."
-          # Use \x27 instead of to avoid Nix syntax errors.
-          # This removes the exact line: secret: 
-          sed -i "/secret: \x27\x27/d" "$FILE"
-          # This removes any lines that end with 'secret: ' (and trailing whitespace)
-          sed -i "/secret:[[:space:]]*$/d" "$FILE"
-          # This removes Windows line endings (CRLF -> LF)
-          sed -i "s/\r//g" "$FILE"
-          echo "Sanitization complete."
-        else
-          echo "Warning: $FILE not found."
-        fi
-      ''}";
-      RemainAfterExit = true;
-    };
-  };
   /*
     systemd.services.mc-watchdog = {
       description = "Minecraft Server Watchdog";
@@ -549,6 +517,7 @@ in
     };
   */
   systemd.services."docker-minecraft-survival" = {
+    after = [ "sops-nix.service" ];
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
@@ -560,6 +529,10 @@ in
 
       cp -f ${./paper-global.yml} /var/lib/minecraft/survival/config/paper-global.yml
 
+      # Inject velocity forwarding secret from SOPS
+      VELOCITY_SECRET=$(tr -d '\n' < /var/lib/minecraft/velocity/forwarding.secret)
+      sed -i "s|secret: ''|secret: '$VELOCITY_SECRET'|" /var/lib/minecraft/survival/config/paper-global.yml
+
       # Drop the bunny image into the root of the server data folder
       cp -f /etc/nixos/assets/server-icon.png /var/lib/minecraft/survival/server-icon.png
 
@@ -570,6 +543,7 @@ in
     '';
   };
   systemd.services."docker-minecraft-lab" = {
+    after = [ "sops-nix.service" ];
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
@@ -580,6 +554,10 @@ in
 
       cp -f ${./paper-global.yml} /var/lib/minecraft/lab/config/paper-global.yml
 
+      # Inject velocity forwarding secret from SOPS
+      VELOCITY_SECRET=$(tr -d '\n' < /var/lib/minecraft/velocity/forwarding.secret)
+      sed -i "s|secret: ''|secret: '$VELOCITY_SECRET'|" /var/lib/minecraft/lab/config/paper-global.yml
+
       # Drop the bunny image into the root of the server data folder
       cp -f /etc/nixos/assets/server-icon.png /var/lib/minecraft/lab/server-icon.png
 
@@ -589,6 +567,7 @@ in
     '';
   };
   systemd.services."docker-minecraft-creative" = {
+    after = [ "sops-nix.service" ];
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
@@ -599,6 +578,10 @@ in
       mkdir -p /var/lib/minecraft/creative/config
 
       cp -f ${./paper-global.yml} /var/lib/minecraft/creative/config/paper-global.yml
+
+      # Inject velocity forwarding secret from SOPS
+      VELOCITY_SECRET=$(tr -d '\n' < /var/lib/minecraft/velocity/forwarding.secret)
+      sed -i "s|secret: ''|secret: '$VELOCITY_SECRET'|" /var/lib/minecraft/creative/config/paper-global.yml
 
       # Drop the bunny image into the root of the server data folder
       cp -f /etc/nixos/assets/server-icon.png /var/lib/minecraft/creative/server-icon.png
@@ -611,6 +594,7 @@ in
   };
 
   systemd.services."docker-minecraft-raina" = {
+    after = [ "sops-nix.service" ];
     serviceConfig = {
       Restart = pkgs.lib.mkForce "always";
       RestartSec = "5m"; # Wait 5 Minutes before trying to restart
@@ -621,6 +605,10 @@ in
       mkdir -p /var/lib/minecraft/raina/config
 
       cp -f ${./paper-global.yml} /var/lib/minecraft/raina/config/paper-global.yml
+
+      # Inject velocity forwarding secret from SOPS
+      VELOCITY_SECRET=$(tr -d '\n' < /var/lib/minecraft/velocity/forwarding.secret)
+      sed -i "s|secret: ''|secret: '$VELOCITY_SECRET'|" /var/lib/minecraft/raina/config/paper-global.yml
 
       # Drop the bunny image into the root of the server data folder
       cp -f /etc/nixos/assets/server-icon.png /var/lib/minecraft/raina/server-icon.png

@@ -91,7 +91,7 @@ in {
                 then user.nixvimConfig
                 else if builtins.pathExists ../home/nixvim/${user.name}.nix
                 then user.name
-                else "default";
+                else "base";
               nixvimPath = ../home/nixvim/${nixvimFile}.nix;
             in
               if builtins.pathExists nixvimPath then nixvimPath
@@ -110,9 +110,9 @@ in {
             copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
               TARGET_DIR="/home/${user.name}/Pictures/wallpapers"
               SRC_PATH="${../../assets/wallpapers}"
-              /run/current-system/sw/bin/rm -rf "$TARGET_DIR" || true
-              /run/current-system/sw/bin/mkdir -p "$(dirname "$TARGET_DIR")"
-              /run/current-system/sw/bin/ln -sfn "$SRC_PATH" "$TARGET_DIR"
+              rm -rf "$TARGET_DIR" || true
+              mkdir -p "$(dirname "$TARGET_DIR")"
+              ln -sfn "$SRC_PATH" "$TARGET_DIR"
             '';
           };
 

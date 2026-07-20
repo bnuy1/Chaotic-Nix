@@ -11,6 +11,7 @@ let
   coturn-realm = "turn.${domain}";
 in
 {
+  imports = [ ./secrets.nix ];
   # open the firewall
   networking.firewall.allowedTCPPorts = [
     6167
@@ -37,7 +38,7 @@ in
 
         max_request_size = 20000000; # in bytes, ~20 MB
         allow_registration = true;
-        registration_token = "ilovemalsomuch"; # A registration token is required when registration is allowed.
+        registration_token_file = config.sops.secrets."matrix/registration_token".path;
         allow_federation = false;
         allow_encryption = true;
         #CONTINUWUITY_ALLOW_CHECK_FOR_UPD 'true'
@@ -74,7 +75,7 @@ in
 
       # to limit users ask for a pre-shared secret string
       use-auth-secret = true;
-      static-auth-secret = "zshglhovtbcobwqncgpaduntddjia";
+      static-auth-secret-file = config.sops.secrets."coturn/static_auth_secret".path;
 
       # your DNS must resolv this subdomain (choose any name
       # you want, `turn' is just a common choice), ensure A and

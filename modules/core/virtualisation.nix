@@ -1,32 +1,32 @@
 { pkgs, lib, vars, ... }:
+let
+  dockerEnable = vars.dockerEnable or false;
+in
 {
-  # AppArmor
   security.apparmor.enable = true;
-  # Only enable either docker or podman -- Not both
+
   virtualisation = {
     docker = {
-      enable = lib.mkForce (vars.dockerEnable or false);
-      rootless = {
-        enable = true;
-        setSocketVariable = true;
-      };
+      enable = dockerEnable;
     };
 
     podman.enable = vars.podmanEnable or false;
 
-    libvirtd = {
-      enable = vars.libvirtdEnable or false;
-    };
+    libvirtd.enable = vars.libvirtdEnable or false;
+  };
 
-    virtualbox.host.enable = false;
+  virtualisation.docker.rootless = lib.mkIf dockerEnable {
+    enable = true;
+    setSocketVariable = true;
   };
 
   programs = {
-    virt-manager.enable = vars.virt-managerEnable or false;
+    virt-manager.enable = vars.virtManagerEnable or false;
   };
 
   environment.systemPackages = with pkgs; (
-    [ virt-viewer ]
-    ++ lib.optionals (vars.dockerEnable or false) [ lazydocker docker-client ]
+    [ ]
+    ++ lib.optionals dockerEnable [ virt-viewer lazydocker docker-client ]
+    ++ lib.optionals (vars.libvirtdEnable or false) [ virt-viewer ]
   );
 }

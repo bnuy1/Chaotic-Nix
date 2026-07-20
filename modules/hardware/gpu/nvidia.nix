@@ -1,7 +1,7 @@
 { lib, pkgs, config, ... }:
-with lib;
 let
   cfg = config.hardware.gpu.nvidia;
+  inherit (lib) mkEnableOption mkIf mkMerge mkOption types;
 
   nvidiaPkg =
     if cfg.package == "legacy_470" then config.boot.kernelPackages.nvidiaPackages.legacy_470

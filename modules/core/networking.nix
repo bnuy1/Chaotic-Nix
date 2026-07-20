@@ -7,13 +7,14 @@
 
 let
   sshPort = vars.sshPort or 2222;
+  vpnEnable = ((vars.serverModules or {}).vpn or null) == true;
 in
 {
   # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
 
-  # Set IPv4 forwarding explicitly to avoid NM race condition
-  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+  # Set IPv4 forwarding explicitly to avoid NM race condition (needed for VPN routing)
+  boot.kernel.sysctl = lib.optionalAttrs vpnEnable { "net.ipv4.ip_forward" = 1; };
 
   # Enable networking
   networking = {
@@ -78,9 +79,7 @@ in
   # services.openssh.enable = true;
   networking.firewall = {
     enable = true;
-    trustedInterfaces = [ "wlp6s0" ];
-    # Qualcomm Wi-Fi interface was : wlp6s0 before it somehow stopped detecting
-
+    trustedInterfaces = [];
   };
 
   services.openssh = {
@@ -106,17 +105,8 @@ in
   networking.firewall.allowedTCPPorts = [
     sshPort
   ]
-  ++ lib.optionals (vars.sunshineEnable or false) [
-    47989
-    47990
-  ]
   ++ lib.optionals (vars.rsyncPort or null != null) [ vars.rsyncPort ];
-  networking.firewall.allowedUDPPorts = lib.optionals (vars.sunshineEnable or false) [
-    47998
-    47999
-    48000
-    48002
-  ];
+  networking.firewall.allowedUDPPorts = [ ];
 
   services.fail2ban = {
     enable = true;

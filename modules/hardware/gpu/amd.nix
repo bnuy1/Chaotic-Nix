@@ -4,9 +4,9 @@
   config,
   ...
 }:
-with lib;
 let
   cfg = config.hardware.gpu.amd;
+  inherit (lib) mkEnableOption mkIf;
 in
 {
   options.hardware.gpu.amd = {

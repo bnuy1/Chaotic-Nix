@@ -21,6 +21,4 @@
   custom.allowUnfreePackages = lib.optionals (vars.canonPrinterSupport or false) [
     "cnijfilter2"
   ];
-  # Canon printer driver (only needed for Canon printers)
-  environment.systemPackages = with pkgs; lib.optionals (vars.canonPrinterSupport or false) [ cnijfilter2 ];
 }

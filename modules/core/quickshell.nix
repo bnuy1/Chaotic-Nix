@@ -10,7 +10,6 @@ in lib.mkIf dm.graphical {
     qt6.qtwayland
     qt6.qtdeclarative
     qt6.qtsvg
-    kdePackages.qt5compat
     qt5.qtgraphicaleffects
   ];
 
@@ -20,7 +19,6 @@ in lib.mkIf dm.graphical {
   };
 
   environment.sessionVariables = {
-    QT_QPA_PLATFORM = "wayland;xcb";
     QT_WAYLAND_DISABLE_WINDOWDECORATION = "1";
   };
 }

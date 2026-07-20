@@ -1,11 +1,11 @@
-{ pkgs, vars, config, lib, ... }:
+{ pkgs, vars, lib, ... }:
 let
   kernelOption = vars.kernel or "zen";
   kernelMap = {
     zen = pkgs.linuxPackages_zen;
     xanmod = pkgs.linuxPackages_xanmod;
     stable = pkgs.linuxPackages;
-    lts = pkgs.linuxPackages_6_6;
+    lts = pkgs.linuxKernel.kernels.linux_6_12;
   };
   isHeadless = lib.hasSuffix "-headless" (vars.displayManager or "");
 

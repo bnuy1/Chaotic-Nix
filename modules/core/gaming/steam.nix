@@ -1,4 +1,16 @@
 { pkgs, lib, vars, ... }:
+let
+  usersHome = map (u: u.name) (builtins.filter (u: u ? name) (vars.users or [ ]));
+  vrsettings = {
+    steamvr = {
+      motionSmoothing = false;
+      enableLinuxVulkanAsync = true;
+      useFacetRenderer = true;
+      disableAsync = true;
+    };
+  };
+  vrsettingsJSON = builtins.toJSON vrsettings;
+in
 {
   programs = {
     steam = {
@@ -39,55 +51,45 @@
   # SteamVR tries to use pkexec to set CAP_SYS_NICE on vrcompositor-launcher.
   # pkexec doesn't work well on NixOS, so pre-set the capability on known paths.
   system.activationScripts.steamvr-setcap = lib.mkIf (vars.steamEnable or false) (
-    let
-      usersHome = map (u: u.name) (builtins.filter (u: u ? name) (vars.users or [ ]));
-    in
-      lib.mkAfter ''
-        for user in ${builtins.toString usersHome}; do
-          compositor="/home/$user/.local/share/Steam/steamapps/common/SteamVR/bin/linux64/vrcompositor-launcher"
-          if [ -f "$compositor" ]; then
-            ${pkgs.libcap}/bin/setcap CAP_SYS_NICE=eip "$compositor" 2>/dev/null || true
-          fi
-        done
-      ''
+    lib.mkAfter ''
+      for user in ${builtins.toString usersHome}; do
+        compositor="/home/$user/.local/share/Steam/steamapps/common/SteamVR/bin/linux64/vrcompositor-launcher"
+        if [ -f "$compositor" ]; then
+          ${pkgs.libcap}/bin/setcap CAP_SYS_NICE=eip "$compositor" 2>/dev/null || true
+        fi
+      done
+    ''
   );
 
   environment.sessionVariables = lib.mkIf (vars.steamEnable or false) {
     RADV_DEBUG = "nocompute";
   };
 
-  # Apply recommended SteamVR settings for Linux AMD.
+  # SteamVR settings overrides for Linux AMD.
+  # motionSmoothing: disable async reprojection — on Linux/RADV async only
+  #   corrects rotation, not translation, producing unplayable seesaw yanking.
   # enableLinuxVulkanAsync: async Vulkan submission for lower frame latency.
   # useFacetRenderer: stabilizes frametime consistency.
-  # disableAsync: disable async reprojection — on Linux/RADV async only
-  #   corrects rotation, not translation, producing unplayable seesaw yanking.
-  # Note: SteamVR may overwrite this file during safe mode resets. Rebuild to re-apply.
-  # Note: vrlink driver ignores encodeWidth/targetBandwidth from steamvr.vrsettings —
+  # disableAsync: secondary async disable (backup for motionSmoothing).
+  # vrlink driver ignores encodeWidth/targetBandwidth from steamvr.vrsettings —
   #   it uses its own automatic calculation based on GPU speed benchmarks.
+  #
+  # Applied by activation script on nixos-rebuild. If Steam overwrites the file
+  # (safe mode, updates), re-run: nixos-rebuild switch to restore.
   system.activationScripts.steamvr-vrsettings = lib.mkIf (vars.steamEnable or false) (
-    let
-      usersHome = map (u: u.name) (builtins.filter (u: u ? name) (vars.users or [ ]));
-      vrsettings = builtins.toJSON {
-        steamvr = {
-          enableLinuxVulkanAsync = true;
-          useFacetRenderer = true;
-          disableAsync = true;
-        };
-      };
-    in
-      lib.mkAfter ''
-        for user in ${builtins.toString usersHome}; do
-          vrsettingsfile="/home/$user/.local/share/Steam/config/steamvr.vrsettings"
-          mkdir -p "$(dirname "$vrsettingsfile")"
-          if [ -f "$vrsettingsfile" ]; then
-            ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$vrsettingsfile" <(echo '${vrsettings}') > /tmp/steamvr.vrsettings.tmp \
-              && mv /tmp/steamvr.vrsettings.tmp "$vrsettingsfile"
-          else
-            echo '${vrsettings}' > "$vrsettingsfile"
-          fi
-          chown "$user:users" "$vrsettingsfile"
-        done
-      ''
+    lib.mkAfter ''
+      for user in ${builtins.toString usersHome}; do
+        vrsettingsfile="/home/$user/.local/share/Steam/config/steamvr.vrsettings"
+        mkdir -p "$(dirname "$vrsettingsfile")"
+        if [ -f "$vrsettingsfile" ]; then
+          ${pkgs.jq}/bin/jq -s '.[0] * .[1]' "$vrsettingsfile" <(echo '${vrsettingsJSON}') > /tmp/steamvr.vrsettings.tmp \
+            && mv /tmp/steamvr.vrsettings.tmp "$vrsettingsfile"
+        else
+          echo '${vrsettingsJSON}' > "$vrsettingsfile"
+        fi
+        chown "$user:users" "$vrsettingsfile"
+      done
+    ''
   );
 
   # Install gamemode polkit rules and actions so gamemoded can change

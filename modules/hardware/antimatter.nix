@@ -19,7 +19,6 @@ in
     boot.kernelModules = [
       "ath12k"
       "iwlwifi"
-      "kvm-intel"
       "usbnet"
       "rndis_host"
       "cdc_ether"

@@ -18,7 +18,7 @@ in
       builtins.elem (lib.getName pkg) config.custom.allowUnfreePackages;
 
     nixpkgs.config.permittedInsecurePackages = lib.optionals (!isHeadless) [
-      "ventoy-1.1.07"
+      "ventoy-1.1.07" # TODO: bump as needed; nixpkgs will flag this when stale
     ];
 
     custom.allowUnfreePackages = lib.optionals (vars.browser == "google-chrome" || vars.browser == "chrome") [
@@ -128,7 +128,7 @@ in
     nix.optimise.automatic = true;
 
     programs.fish.enable = true;
-    programs.nix-ld.enable = vars.NonNixBinarySupport or true;
+    programs.nix-ld.enable = vars.nonNixBinarySupport or true;
 
     # System fonts
     fonts.packages = [

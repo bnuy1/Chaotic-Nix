@@ -7,7 +7,7 @@
   # Styling Options
   stylix = {
     enable = true;
-    image = vars.defaultBackroundImage;
+    image = vars.defaultBackgroundImage;
 
     polarity = vars.stylixPolarity or "dark";
     opacity.terminal = 1.0;
@@ -26,8 +26,8 @@
         name = "Montserrat";
       };
       serif = {
-        package = pkgs.montserrat;
-        name = "Montserrat";
+        package = pkgs.noto-fonts;
+        name = "Noto Serif";
       };
       sizes = {
         applications = 12;

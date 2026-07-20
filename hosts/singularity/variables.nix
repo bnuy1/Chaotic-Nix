@@ -26,11 +26,6 @@
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFNohenCiYWNpZXB05tskL/aP3aYWYtmO8PTz2INP0Up"
       ];
 
-      # Initrd SSH host key for remote LUKS unlock (filename in ~/.ssh/)
-      # If set, enables SSH in initrd so you can type LUKS passphrase remotely.
-      # All declared keys across all users are accepted; missing files generate warnings.
-      remoteLuksDecryptionKeyPath = "id_ed25519_initrd"; # e.g. "id_ed25519_initrd" (default: null)
-
       # Home-manager
       homeDirectory = null; # Custom home dir, null = /home/<name>             (default: null)
       minimal = false; # Skip ../home import (no common pkgs/stylix/etc)      (default: false)
@@ -62,7 +57,7 @@
   consoleKeyMap = "us"; # Console keymap                                    (default: "us")
 
   # -- Style / Theming --------------------------------------------------------
-  defaultBackroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
+  defaultBackgroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
   stylixPolarity = "dark"; # "dark" or "light"                              (default: "dark")
 
   # -- Browser / Editor -------------------------------------------------------
@@ -100,17 +95,62 @@
   dockerEnable = true; # Rootless Docker daemon + lazydocker
   podmanEnable = false; # Podman container runtime
   libvirtdEnable = false; # KVM/QEMU libvirtd daemon
-  virt-managerEnable = false; # GUI VM manager
+  virtManagerEnable = false; # GUI VM manager
 
   # -- Networking -------------------------------------------------------------
   sshPort = 2222; # SSH daemon port                                        (default: 2222)
   bluetoothEnable = false; # Bluetooth hardware support                    (default: true)
   rsyncPort = 39127; # SSH port for rsync backup tunnel                    (default: null)
 
+  networking.staticProfiles = {
+    "enp3s0" = {
+      connection = {
+        id = "enp3s0";
+        type = "ethernet";
+      };
+      ipv4 = {
+        method = "manual";
+        addresses = "192.168.1.2/24;";
+        gateway = "192.168.1.1";
+      };
+    };
+    "enp0s31f6" = {
+      connection = {
+        id = "enp0s31f6";
+        type = "ethernet";
+      };
+      ipv4 = {
+        method = "manual";
+        addresses = "192.168.1.3/24;";
+        gateway = "192.168.1.1";
+      };
+    };
+  };
+
+  # Initrd Remote Unlock
+  # SSH into port 2222, enter passphrases, system boots
+  initrdUnlock = {
+    enable = true;
+    networks = {
+      "10-enp3s0" = {
+        matchConfig.Name = "enp3s0";
+        address = [ "192.168.1.2/24" ];
+        routes = [ { Gateway = "192.168.1.1"; } ];
+        linkConfig.RequiredForOnline = "routable";
+      };
+      "10-enp0s31f6" = {
+        matchConfig.Name = "enp0s31f6";
+        address = [ "192.168.1.3/24" ];
+        routes = [ { Gateway = "192.168.1.1"; } ];
+        linkConfig.RequiredForOnline = "routable";
+      };
+    };
+  };
+
   # -- System -----------------------------------------------------------------
   systemFont = "iosevka"; # System monospace font                          (default: "iosevka")
   locale = "en_US.UTF-8"; # System locale                                  (default: "en_US.UTF-8")
-  NonNixBinarySupport = false; # nix-ld: run non-Nix binaries              (default: true)
+  nonNixBinarySupport = false; # nix-ld: run non-Nix binaries              (default: true)
 
   # GPU Drivers
   # Valid: any combination of "intel", "amd", "nvidia"
@@ -134,9 +174,7 @@
 
   # -- Storage ----------------------------------------------------------------
   # Swap
-  swap = {
-    luksSwapUuid = "714230b7-3382-4de4-aa51-c8d66f660995"; # UUID of LUKS-encrypted swap partition
-  };
+  swap = { };
 
   # ZFS
   zfs = {
@@ -153,6 +191,7 @@
     pterodactyl = true;
     vpn = true;
     technitium = true;
+    remoteUnlock = true;
     netboot = {
       listenIp = "192.168.1.166";
     };

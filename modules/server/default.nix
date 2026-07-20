@@ -5,6 +5,7 @@ let
     vpn = ./vpn;
     technitium = ./technitium;
     netboot = ./netboot;
+    remoteUnlock = ./remote-unlock;
   };
 
   # Filter to enabled modules (true or attrset, not null)
