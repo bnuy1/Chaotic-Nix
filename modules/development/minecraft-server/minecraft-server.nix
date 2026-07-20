@@ -895,10 +895,14 @@ in
     ];
     allowedUDPPorts = [ 19132 ]; # Geyser
     extraCommands = ''
-      # Allow the Docker bridge (usually docker0) to access MySQL
-      iptables -A INPUT -i docker0 -p tcp --dport 3306 -j ACCEPT
-      # Allow your custom 'mc-net' bridge (usually starts with br-) to access MySQL
-      iptables -A INPUT -i br-+ -p tcp --dport 3306 -j ACCEPT
+      # Allow only the mc-net Docker bridge to access MySQL
+      MC_BRIDGE=$(docker network inspect mc-net -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null | head -1)
+      if [ -n "$MC_BRIDGE" ]; then
+        MC_IFACE=$(ip -o addr show to "$MC_BRIDGE" | awk '{print $2}' | head -1)
+        if [ -n "$MC_IFACE" ]; then
+          iptables -A INPUT -i "$MC_IFACE" -p tcp --dport 3306 -j ACCEPT
+        fi
+      fi
     '';
 
   };

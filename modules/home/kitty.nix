@@ -4,7 +4,7 @@
   programs.kitty = {
     enable = true;
 
-    settings = lib.mkForce {
+    settings = {
       # Fonts
       font_family = "Iosevka";
       bold_font = "auto";

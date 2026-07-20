@@ -169,8 +169,9 @@ let
   wrapperInitrd = pkgs.runCommand "wrapper-initrd" {
     nativeBuildInputs = [ pkgs.busybox ];
   } ''
-    mkdir -p $out/rootfs/bin
+    mkdir -p $out/rootfs/bin $out/rootfs/etc/ssl/certs
     cp ${pkgs.busybox}/bin/busybox $out/rootfs/bin/
+    cp ${pkgs.cacert}/etc/ssl/certs/ca-certificates.crt $out/rootfs/etc/ssl/certs/ca-certificates.crt
     cp ${./wrapper-initrd/init} $out/rootfs/init
     chmod +x $out/rootfs/init
     cd $out/rootfs

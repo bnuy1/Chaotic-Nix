@@ -1,3 +1,8 @@
+{ config, ... }:
+
+let
+  palette = config.stylix.base16.scheme.colors;
+in
 {
   programs.waybar = {
     enable = true;
@@ -56,11 +61,11 @@
           "weeks-pos" = "right";
           "on-scroll" = 1;
           format = {
-            months = "<span color='#ffead3'><b>{}</b></span>";
-            days = "<span color='#ecc6d9'><b>{}</b></span>";
-            weeks = "<span color='#99ffdd'><b>W{}</b></span>";
-            weekdays = "<span color='#ffcc66'><b>{}</b></span>";
-            today = "<span color='#ff6699'><b><u>{}</u></b></span>";
+            months = "<span color='#${palette.base0A}'><b>{}</b></span>";
+            days = "<span color='#${palette.base0E}'><b>{}</b></span>";
+            weeks = "<span color='#${palette.base0C}'><b>W{}</b></span>";
+            weekdays = "<span color='#${palette.base09}'><b>{}</b></span>";
+            today = "<span color='#${palette.base0D}'><b><u>{}</u></b></span>";
           };
         };
         actions = {
@@ -81,26 +86,26 @@
       }
 
       window#waybar {
-          background: rgba(0,0,0, 0.5);
+          background: rgba(${palette.base00}, 0.5);
           border-bottom: 3px solid transparent;
-          color: #ffffff;
+          color: #${palette.base05};
       }
 
       #workspaces button {
           padding: 0 5px;
           margin: 0 3px;
-          color: #ffffff;
+          color: #${palette.base05};
           border-bottom: 3px solid transparent;
       }
 
       #workspaces button.focused {
           background: rgba(100, 114, 125, 0.2);
-          border-bottom: 3px solid #ffffff;
+          border-bottom: 3px solid #${palette.base05};
       }
 
       #submap {
           background: transparent;
-          border-bottom: 3px solid #ffffff;
+          border-bottom: 3px solid #${palette.base05};
       }
 
       #clock, #battery, #cpu, #memory, #network, #pulseaudio, #temperature, #backlight, #idle_inhibitor {
@@ -110,11 +115,11 @@
 
       #clock {
           background-color: transparent;
-          color: #ffffff;
+          color: #${palette.base05};
       }
 
       #battery.charging {
-          color: #ffffff;
+          color: #${palette.base05};
       }
 
       @keyframes blink {
@@ -124,8 +129,8 @@
       }
 
       #battery.warning:not(.charging) {
-          background: #f53c3c;
-          color: #ffffff;
+          background: #${palette.base08};
+          color: #${palette.base05};
           animation-name: blink;
           animation-duration: 0.5s;
           animation-timing-function: linear;
@@ -135,33 +140,33 @@
 
       #cpu {
           background: transparent;
-          border-bottom: 3px solid #ffffff;
-          color: #ffffff;
+          border-bottom: 3px solid #${palette.base05};
+          color: #${palette.base05};
       }
 
       #memory {
           background: transparent;
-          border-bottom: 3px solid #ffffff;
-          color: #ffffff;
+          border-bottom: 3px solid #${palette.base05};
+          color: #${palette.base05};
       }
 
       #network {
           background: transparent;
-          color: #ffffff;
+          color: #${palette.base05};
       }
 
       #network.disconnected {
           background: transparent;
-          color: crimson;
+          color: #${palette.base08};
       }
 
       #pulseaudio {
           background: transparent;
-          color: #ffffff;
+          color: #${palette.base05};
       }
 
       #pulseaudio.muted {
-          border-bottom: 3px solid #ff0000;
+          border-bottom: 3px solid #${palette.base08};
       }
 
       #tray {

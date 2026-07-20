@@ -24,7 +24,7 @@ echo "wrapper-initrd: Creating tmpfs for squashfs..."
 /bin/busybox mount -t tmpfs -o size=80%,mode=755 tmpfs /mnt
 
 echo "wrapper-initrd: Downloading squashfs from $SQUASHFS_URL..."
-/bin/busybox wget -q --no-check-certificate -O /mnt/root.squashfs "$SQUASHFS_URL"
+/bin/busybox wget -q --ca-certificate=/etc/ssl/certs/ca-certificates.crt -O /mnt/root.squashfs "$SQUASHFS_URL"
 DOWNLOAD_EXIT=$?
 
 if [ "$DOWNLOAD_EXIT" -ne 0 ]; then

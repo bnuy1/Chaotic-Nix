@@ -214,7 +214,7 @@ in
           ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:4096 \
             -keyout /var/lib/pterodactyl/ssl/key.pem \
             -out /var/lib/pterodactyl/ssl/cert.pem \
-            -days 3650 -nodes \
+            -days 365 -nodes \
             -subj "/CN=${cfg.domain}" \
             -addext "subjectAltName=DNS:${cfg.domain},IP:${cfg.listenIP}"
         fi

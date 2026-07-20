@@ -4,7 +4,7 @@
   services.dunst = {
     enable = true;
 
-    settings = lib.mkForce {
+    settings = {
       global = {
         monitor = 0;
         follow = "mouse";

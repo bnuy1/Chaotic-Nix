@@ -42,8 +42,8 @@ in
   boot.kernelParams = [
     "preempt=full"
     "threadirqs"
-    "amdgpu.dc=1"
-  ] ++ lib.optionals (!isHeadless) [ "splash" ] ++ [
+  ] ++ lib.optionals (builtins.elem "amd" (vars.gpuDrivers or [])) [ "amdgpu.dc=1" ]
+    ++ lib.optionals (!isHeadless) [ "splash" ] ++ [
     "slab_nomerge"
     "init_on_alloc=1"
     "init_on_free=1"

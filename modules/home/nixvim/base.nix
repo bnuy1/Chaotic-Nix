@@ -259,7 +259,6 @@
       prettierd
       stylua
       shfmt
-      nixpkgs-fmt
       figlet
       toilet
     ];

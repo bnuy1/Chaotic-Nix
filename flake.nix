@@ -98,8 +98,6 @@
           ];
         };
 
-      forAllSystems = nixpkgs.lib.genAttrs [ "x86_64-linux" ];
-      pkgsFor = nixpkgs.legacyPackages.x86_64-linux;
     in
     {
       nixosConfigurations = builtins.listToAttrs (

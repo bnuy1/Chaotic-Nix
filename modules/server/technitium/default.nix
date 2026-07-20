@@ -52,8 +52,13 @@ in
     };
 
     networking.firewall = {
-      allowedTCPPorts = [ 53 5380 ];
+      allowedTCPPorts = [ 53 ];
       allowedUDPPorts = [ 53 ];
+      # Restrict Technitium admin panel to localhost only
+      extraCommands = ''
+        iptables -A INPUT -p tcp --dport 5380 -s 127.0.0.0/8 -j ACCEPT
+        iptables -A INPUT -p tcp --dport 5380 -j DROP
+      '';
     };
 
     networking.nameservers = lib.mkIf cfg.useLocally [ cfg.listenAddress ];
