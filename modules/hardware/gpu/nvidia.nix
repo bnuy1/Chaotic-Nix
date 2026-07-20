@@ -66,6 +66,8 @@ in
   };
 
   config = mkIf cfg.enable {
+    nixpkgs.config.nvidia.acceptLicense = true;
+
     custom.allowUnfreePackages = [
       "nvidia-x11"
       "nvidia-settings"

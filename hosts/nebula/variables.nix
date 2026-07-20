@@ -1,6 +1,6 @@
 {
   # -- System Specific --------------------------------------------------------
-  kernel = "xanmod";
+  kernel = "stable";
 
   timeZone = "America/New_York";
 
@@ -42,7 +42,7 @@
 
       # Git glorious development
       gitUsername = "Ha2k4r";
-      githubSSHKey = null; # Dedicated SSH key for GitHub (default: null)
+      githubSSHKey = "~/.ssh/id_ed25519_github"; # Dedicated SSH key for GitHub (default: null)
       gitEmail = "bnuy@bnuy.dev";
     }
   ];
@@ -51,7 +51,7 @@
   # Valid: "sddm", "sddm-graphical", "sddm-headless",
   #        "tui",  "tui-headless",   "tui-graphical",
   #        "ly",   "ly-headless",    "ly-graphical"
-  displayManager = "sddm-graphical";
+  displayManager = "ly-graphical";
 
   # -- Keyboard / Locale ------------------------------------------------------
   keyboardLayout = "us";
@@ -116,7 +116,10 @@
   #   lspci | grep -iE '(vga|3d)' | grep -ioE 'amd|nvidia|intel' | sort -u \
   #     | awk 'BEGIN{printf "["} {printf " \"%s\"", tolower($1)} END{printf " ]\n"}'
   # Example output: [ ]
-  gpuDrivers = [ "intel" "nvidia" ]; # Catch-all: empty = modesetting only, pick GPU(s) per-host
+  gpuDrivers = [
+    "intel"
+    "nvidia"
+  ]; # Catch-all: empty = modesetting only, pick GPU(s) per-host
   rocmEnable = false; # Machine learning optimizations for AMD cards
   nvidiaPowerManagement = true; # NVIDIA power management for Optimus       (default: false)
 

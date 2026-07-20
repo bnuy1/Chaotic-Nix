@@ -21,7 +21,7 @@
         padding = 10;
         horizontal_padding = 10;
         text_icon_padding = 10;
-        separator_color = "frame";
+        separator_color = lib.mkForce "frame";
         # frame_color handled by stylix
         startup_notification = false;
         corner_radius = 8;

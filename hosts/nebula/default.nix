@@ -8,5 +8,5 @@
   ];
 
   hardware.thinkpad-t440p.enable = true;
-  hardware.thinkpad-t440p.gpu = "intel";
+  hardware.thinkpad-t440p.gpu = "nvidia";
 }

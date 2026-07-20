@@ -1,7 +1,7 @@
 { vars, dm, config, ... }:
 
 let
-  palette = config.stylix.base16.scheme.colors;
+  palette = config.lib.stylix.colors;
 in
 {
   imports = [
