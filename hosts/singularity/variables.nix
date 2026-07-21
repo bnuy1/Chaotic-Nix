@@ -100,7 +100,7 @@
   virtManagerEnable = false; # GUI VM manager
 
   # -- Networking -------------------------------------------------------------
-  sshPort = 2222; # SSH daemon port                                        (default: 2222)
+  sshPort = 22; # SSH daemon port                                           (default: 22)
   bluetoothEnable = false; # Bluetooth hardware support                    (default: true)
   rsyncPort = 39127; # SSH port for rsync backup tunnel                    (default: null)
 

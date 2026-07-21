@@ -6,8 +6,8 @@
 }:
 
 let
-  sshPort = vars.sshPort or 2222;
-  vpnEnable = ((vars.serverModules or {}).vpn or null) == true;
+  sshPort = vars.sshPort or 22;
+  vpnEnable = ((vars.serverModules or { }).vpn or null) == true;
 in
 {
   # Disable wait-online service for faster boot
@@ -79,7 +79,7 @@ in
   # services.openssh.enable = true;
   networking.firewall = {
     enable = true;
-    trustedInterfaces = [];
+    trustedInterfaces = [ ];
   };
 
   services.openssh = {
