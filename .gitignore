@@ -10,3 +10,6 @@ AUDIT.md
 
 # SOPS encrypted secrets (never commit plaintext-equivalent files)
 **/secrets.yaml
+
+# OpenCode
+.opencode/
