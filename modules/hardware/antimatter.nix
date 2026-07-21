@@ -24,6 +24,7 @@ in
       "cdc_ether"
       "cdc_subset"
       "snd-usb-audio"
+      "cdrom"
     ];
     boot.kernelParams = [ ];
 

@@ -2,6 +2,8 @@
   # -- System Specific --------------------------------------------------------
   kernel = "xanmod";
 
+  secureBoot = false; # Singularity motherboard does not support UEFI Secure Boot
+
   timeZone = "America/New_York";
 
   # -- Users ------------------------------------------------------------------

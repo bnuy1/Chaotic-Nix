@@ -3,6 +3,8 @@
   # Valid: "zen", "xanmod", "stable", "lts"
   kernel = "stable";
 
+  secureBoot = true; # Lanzaboote UEFI Secure Boot (false = systemd-boot fallback)
+
   timeZone = "America/New_York";
 
   # -- Users ------------------------------------------------------------------

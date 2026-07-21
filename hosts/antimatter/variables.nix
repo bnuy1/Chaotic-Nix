@@ -21,6 +21,7 @@
         "wheel"
         "realtime"
         "gamemode"
+        "disk"
       ];
       shell = "fish"; # Login shell. Supported: "bash", "fish"                (default: "bash")
       sshKeys = [ ];

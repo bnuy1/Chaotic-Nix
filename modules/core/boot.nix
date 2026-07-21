@@ -8,6 +8,7 @@ let
     lts = pkgs.linuxKernel.kernels.linux_6_12;
   };
   isHeadless = lib.hasSuffix "-headless" (vars.displayManager or "");
+  secureBoot = vars.secureBoot or true;
 
   lonePlymouthTheme = pkgs.stdenv.mkDerivation {
     name = "lone-plymouth-theme";
@@ -28,9 +29,14 @@ in
     timeout = 2;
   };
 
-  boot.lanzaboote = {
+  boot.lanzaboote = lib.mkIf secureBoot {
     enable = true;
     pkiBundle = "/var/lib/sbctl";
+    configurationLimit = 5;
+  };
+
+  boot.loader.systemd-boot = lib.mkIf (!secureBoot) {
+    enable = true;
     configurationLimit = 5;
   };
 
