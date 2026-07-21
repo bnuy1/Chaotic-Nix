@@ -41,7 +41,7 @@
       shellAliases = { };
 
       # Git glorious development
-      gitUsername = "Ha2k4r";
+      gitUsername = "bnuy1";
       githubSSHKey = null; # Dedicated SSH key for GitHub (default: null)
       gitEmail = "bnuy@bnuy.dev";
     }
