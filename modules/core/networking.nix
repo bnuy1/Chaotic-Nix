@@ -22,6 +22,10 @@ in
       enable = true;
       wifi.backend = "iwd";
       unmanaged = [ "interface-name:wg*" ];
+      settings.main = {
+        # Don't let router RA/DHCP inject DNS — use our DoT servers only
+        "ignore-auto-dns" = true;
+      };
     };
 
     enableIPv6 = true;
@@ -46,7 +50,7 @@ in
         DNSSEC = "true";
         Domains = [ "~." ];
         # Force all DNS traffic to be encrypted using TLS
-        DNSOverTLS = "opportunistic";
+        DNSOverTLS = "true";
         # Let avahi handle .local mDNS — avoids dual-stack warnings
         MulticastDNS = false;
       };
