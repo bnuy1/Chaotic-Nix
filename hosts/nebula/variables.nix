@@ -59,7 +59,7 @@
   consoleKeyMap = "us"; # Console keymap                                    (default: "us")
 
   # -- Style / Theming --------------------------------------------------------
-  defaultBackgroundImage = ../../assets/wallpapers/Stocking.png; # Wallpaper for stylix
+  defaultBackgroundImage = ../../assets/wallpapers/sun_moon.jpg; # Wallpaper for stylix
   stylixPolarity = "dark"; # "dark" or "light"                              (default: "dark")
 
   # -- Browser / Editor -------------------------------------------------------
@@ -83,7 +83,7 @@
 
   # -- Printing ---------------------------------------------------------------
   printEnable = true; # CUPS + avahi + ipp-usb
-  canonPrinterSupport = false; # Install cnijfilter2 Canon printer driver   (default: false)
+  canonPrinterSupport = true; # Install cnijfilter2 Canon printer driver   (default: false)
 
   # -- File Manager -----------------------------------------------------------
   # Valid: "dolphin", "thunar", or null (no file manager)
@@ -147,7 +147,7 @@
   # true = enabled with default config, attrset = enabled with custom config, null = not imported
   serverModules = {
     pterodactyl = null;
-    vpn = null;
+    vpn = true;
     technitium = null;
     netboot = null;
   };
