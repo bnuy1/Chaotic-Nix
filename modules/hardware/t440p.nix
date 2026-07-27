@@ -37,13 +37,26 @@ in
       "iwlwifi"
       "e1000e"
       "snd-hda-intel"
+      "usbhid"
+      "uinput"
     ];
 
     boot.initrd.availableKernelModules = [
       "xhci_pci" "ahci" "nvme" "usbhid" "usb_storage" "sd_mod"
     ];
 
-    boot.kernelParams = [ "acpi_backlight=vendor" "intel_iommu=on" "iommu.passthrough=0" ];
+    boot.kernelParams = [
+      "acpi_backlight=vendor"
+      "intel_iommu=on"
+      "iommu.passthrough=0"
+      "thinkpad_acpi.fan_control=1"
+      "pcie_aspm=force"
+    ];
+
+    boot.extraModprobeConfig = ''
+      options iwlwifi power_save=1
+      options snd_hda_intel power_save=1
+    '';
 
     boot.blacklistedKernelModules = [ "thunderbolt" ];
 
