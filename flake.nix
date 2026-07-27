@@ -2,7 +2,7 @@
   description = "Agnostic Multi-Host NixOS Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
 
     home-manager = {
       url = "github:nix-community/home-manager";
@@ -14,10 +14,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    stylix.url = "github:danth/stylix";
+    stylix = {
+      url = "github:danth/stylix/release-26.05";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     # SOPS secrets manager (for development) so.. its not required if you recieved this file from a friend.
-    sops-nix.url = "github:Mic92/sops-nix";
+    sops-nix = {
+      url = "github:Mic92/sops-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
 
     silentSDDM = {
       url = "github:uiriansan/SilentSDDM";
@@ -26,6 +32,7 @@
 
     lanzaboote = {
       url = "github:nix-community/lanzaboote/v1.1.0";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
 
