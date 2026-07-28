@@ -24,4 +24,7 @@ in
   ];
 
   networking.hostName = networkingHostname;
+
+  # Silence boot.zfs.forceImportRoot warning (safe default for all hosts)
+  boot.zfs.forceImportRoot = false;
 }

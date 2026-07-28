@@ -117,7 +117,10 @@ let
   };
 
   build = netbootConfig.config.system.build;
-  kernelFile = netbootConfig.config.boot.kernelPackages.kernel.target;
+  # kernel.target moved to passthru in newer nixpkgs
+  kernelFile = netbootConfig.config.boot.kernelPackages.kernel.passthru.target
+    or netbootConfig.config.boot.kernelPackages.kernel.target
+    or "bzImage";
 
   autoexecScript = pkgs.writeText "autoexec.ipxe" ''
     #!ipxe

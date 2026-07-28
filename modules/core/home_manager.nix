@@ -60,6 +60,7 @@ in {
             then user.homeDirectory
             else "/home/${user.name}";
           home.stateVersion = "25.11";
+          home.pointerCursor.enable = true;
         }
         else let
           userAliases =
@@ -141,6 +142,11 @@ in {
 
           programs.fish.shellAliases =
             userAliases // { ls = "ls --color"; } // (user.shellAliases or { });
+
+          # Enable Quickshell with end4's Illogical Impulse config for graphical sessions
+          programs.quickshell-ii = lib.mkIf dm.graphical {
+            enable = true;
+          };
         };
     }) vars.users);
   };
