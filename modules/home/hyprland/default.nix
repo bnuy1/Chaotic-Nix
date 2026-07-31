@@ -1,8 +1,6 @@
 { vars, dm, config, ... }:
 
 let
-  palette = config.lib.stylix.colors;
-
   # Filter users who get full HM config (minimal = false)
   # Only these users will have Hyprland configs
   fullUsers = builtins.filter (user: !(user.minimal or false)) vars.users;
@@ -75,25 +73,6 @@ let
     end
   '';
 
-  # Generate Stylix palette JSON for Quickshell
-  paletteJson = builtins.toJSON {
-    base00 = "#${palette.base00}";
-    base01 = "#${palette.base01}";
-    base02 = "#${palette.base02}";
-    base03 = "#${palette.base03}";
-    base04 = "#${palette.base04}";
-    base05 = "#${palette.base05}";
-    base06 = "#${palette.base06}";
-    base07 = "#${palette.base07}";
-    base08 = "#${palette.base08}";
-    base09 = "#${palette.base09}";
-    base0A = "#${palette.base0A}";
-    base0B = "#${palette.base0B}";
-    base0C = "#${palette.base0C}";
-    base0D = "#${palette.base0D}";
-    base0E = "#${palette.base0E}";
-    base0F = "#${palette.base0F}";
-  };
 in
 {
   imports = [
@@ -109,58 +88,21 @@ in
 
   xdg.configFile = {
     # Lua config files
-    "hypr/hyprland.lua".source = ./lua/hyprland.lua;
-    "hypr/lib.lua".source = ./lua/lib.lua;
-    "hypr/appearance.lua".source = ./lua/appearance.lua;
-    "hypr/autostart.lua".source = ./lua/autostart.lua;
-    "hypr/rules.lua".source = ./lua/rules.lua;
-    "hypr/binds.lua".source = ./lua/binds.lua;
+    "hypr/hyprland.lua".source = ./hyprland.lua;
+    "hypr/lib.lua".source = ./lib.lua;
+    "hypr/appearance.lua".source = ./appearance.lua;
+    "hypr/autostart.lua".source = ./autostart.lua;
+    "hypr/rules.lua".source = ./rules.lua;
+    "hypr/binds.lua".source = ./binds.lua;
 
     # Nix-generated profiles.lua
     "hypr/profiles.lua".text = profilesLua;
 
     # Keybind profiles
-    "hypr/keybinds/bnuy.lua".source = ./lua/keybinds/bnuy.lua;
-    "hypr/keybinds/raina.lua".source = ./lua/keybinds/raina.lua;
+    "hypr/keybinds/bnuy.lua".source = ./keybinds/bnuy.lua;
+    "hypr/keybinds/raina.lua".source = ./keybinds/raina.lua;
 
-    # Stylix palette export for Quickshell
-    "hypr/palette.json".text = paletteJson;
-
-    # Hyprlock and Hypridle stay as hyprlang (hybrid approach)
-    "hypr/hyprlock.conf".text = ''
-      # Star it up: https://github.com/hyprwm/hyprlock
-
-      background {
-          monitor =
-          path = $HOME/Pictures/wallpapers
-          color = rgb(${palette.base00})
-          blur_passes = 2
-          blur_size = 6
-          noise = 0.01
-          contrast = 0.9
-          brightness = 0.8
-          vibrancy = 0.2
-          vibrancy_darkness = 0.0
-      }
-
-      input-field {
-          monitor =
-          size = 300, 60
-          outline_thickness = 3
-          dots_size = 0.2
-          dots_spacing = 0.35
-          dots_center = true
-          outer_color = rgb(${palette.base0D})
-          inner_color = rgb(${palette.base01})
-          font_color = rgb(${palette.base05})
-          fade_on_empty = false
-          placeholder_text = <i>Password...</i>
-          hide_input = false
-          position = 0, -80
-          halign = center
-          valign = center
-      }
-    '';
+    # Hypridle stays as hyprlang (hybrid approach)
     "hypr/hypridle.conf".source = ./hypridle.conf;
 
     # Other configs
@@ -171,10 +113,5 @@ in
       source = ./scripts;
       recursive = true;
     };
-
-    # Environment variable for Stylix palette
-    "hypr/env.sh".text = ''
-      export HYPRLAND_PALETTE='${paletteJson}'
-    '';
   };
 }

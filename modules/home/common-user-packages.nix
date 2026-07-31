@@ -66,6 +66,7 @@ in
     ++ lib.optionals dm.graphical [
       # GUI
       kdePackages.kate
+      fuzzel
       krita
       gnome-multi-writer
       pavucontrol

@@ -17,7 +17,6 @@ hl.bind("CTRL + ALT + T", hl.dsp.exec_cmd(terminal))
 hl.bind(mainMod .. " + U", hl.dsp.exec_cmd(fileManager), { description = "App: File manager" })
 hl.bind(mainMod .. " + P", hl.dsp.exec_cmd(browser), { description = "App: Browser" })
 hl.bind(mainMod .. " + J", hl.dsp.exec_cmd(codeEditor), { description = "App: Code editor" })
-hl.bind(mainMod .. " + F", hl.dsp.exec_cmd(menu), { description = "App: Launcher" })
 
 ----------------------------
 ---- WINDOW MANAGEMENT -----
@@ -67,9 +66,9 @@ for i = 1, 10 do
     end, { description = "Workspace: Focus " .. i })
 end
 
--- Move to workspace (1-10)
+-- Move to workspace (1-10), keep focus on current workspace
 for i = 1, 10 do
-    hl.bind(mainMod .. " + ALT + " .. (i % 10), function()
+    hl.bind(mainMod .. " + SHIFT + " .. (i % 10), function()
         hl.dispatch(hl.dsp.window.move({ workspace = workspace_in_group(i), follow = false }))
     end, { description = "Window: Send to workspace " .. i })
 end

@@ -51,6 +51,29 @@ in
 
     system.stateVersion = "25.11";
 
+    # Global distro branding (About screen, neofetch/fastfetch, system tools)
+    system.nixos = {
+      distroName = "BnuyOS";
+      distroId = "bnuyos";
+      vendorName = "BnuyOS";
+      vendorId = "bnuyos";
+      extraOSReleaseArgs = {
+        PRETTY_NAME = "BnuyOS V0.6";
+        NAME = "BnuyOS";
+        ID = "bnuyos";
+        ID_LIKE = "nixos";
+        VERSION = "V0.6";
+        VERSION_ID = "0.6";
+        HOME_URL = "https://bnuy.dev";
+        VENDOR_URL = "https://bnuy.dev";
+        DOCUMENTATION_URL = "https://github.com/bnuy1/bnuynix";
+        SUPPORT_URL = "https://github.com/bnuy1/bnuynix";
+        BUG_REPORT_URL = "https://github.com/bnuy1/bnuynix/issues";
+        PRIVACY_POLICY_URL = "https://github.com/bnuy1/bnuynix";
+        LOGO = "nixos-symbolic";
+      };
+    };
+
     users.users.admin = {
       isNormalUser = true;
       extraGroups = [ "wheel" ];

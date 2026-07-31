@@ -1,4 +1,4 @@
-{ lib, ... }:
+{ config, lib, ... }:
 
 {
   programs.kitty = {
@@ -56,5 +56,11 @@
       "ctrl+equal" = "increase_font_size";
       "ctrl+minus" = "decrease_font_size";
     };
+
+    extraConfig = ''
+      # Include dynamically generated quickshell colors (applied by switchwall)
+      # Note: if this file doesn't exist (headless / first boot), kitty silently ignores it
+      include ${config.home.homeDirectory}/.local/state/quickshell/user/generated/terminal/kitty-theme.conf
+    '';
   };
 }

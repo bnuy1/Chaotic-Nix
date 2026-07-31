@@ -48,7 +48,6 @@ terminal = launch_first_available("kitty", "foot", "alacritty", "wezterm")
 fileManager = launch_first_available("dolphin", "nautilus", "thunar", "pcmanfm-qt")
 browser = launch_first_available("librewolf", "firefox", "google-chrome-stable", "chromium")
 codeEditor = launch_first_available("code", "codium", "cursor", "zed")
-menu = launch_first_available("rofi -show drun", "fuzzel", "wofi --show drun")
 
 workspaceGroupSize = 10
 

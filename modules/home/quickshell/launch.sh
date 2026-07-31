@@ -1,15 +1,25 @@
 #!/usr/bin/env bash
-# Quickshell launcher with Stylix color integration
-# Generates colors.json from HYPRLAND_PALETTE before launching Quickshell
+# Quickshell launcher
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Find and add gsettings schemas to XDG_DATA_DIRS
+for profile in "$HOME/.nix-profile" "/etc/profiles/per-user/$USER" "/run/current-system/sw"; do
+  resolved="$(readlink -f "$profile" 2>/dev/null || echo "$profile")"
+  schema_dir="$resolved/share/gsettings-schemas"
+  if [ -d "$schema_dir" ]; then
+    for schema in "$schema_dir"/*; do
+      if [ -d "$schema" ] && [[ ":$XDG_DATA_DIRS:" != *":$schema:"* ]]; then
+        XDG_DATA_DIRS="${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}$schema"
+      fi
+    done
+  fi
+done
+export XDG_DATA_DIRS
 
-# Generate colors.json from HYPRLAND_PALETTE if it exists
-if [ -n "$HYPRLAND_PALETTE" ]; then
-    # Use python3 from nixpkgs if available
-    PYTHON=$(command -v python3 || echo "python3")
-    "$PYTHON" "$SCRIPT_DIR/base16-to-m3.py" 2>/dev/null || true
-fi
+# Python virtual environment for color generation (materialyoucolor, pillow, etc.)
+export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
+# libstdc++ for pip-installed native Python extensions
+STDCXX_LIB="$(dirname "$(find /nix/store -maxdepth 4 -name 'libstdc++.so.6' 2>/dev/null | head -1)" 2>/dev/null)"
+[ -n "$STDCXX_LIB" ] && export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$STDCXX_LIB"
 
-# Launch Quickshell with ii config
 exec qs -c ii "$@"

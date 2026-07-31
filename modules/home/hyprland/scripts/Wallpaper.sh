@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-LOCATION="$HOME/Pictures/wallpapers"
+LOCATION="$HOME/Pictures/Wallpapers"
 
 # Create directory if it doesn't exist
 [ ! -d "$LOCATION" ] && mkdir -p "$LOCATION"

@@ -109,11 +109,21 @@ in {
 
           home.activation = lib.optionalAttrs dm.graphical {
             copyWallpapers = hmLib.hm.dag.entryAfter [ "writeBoundary" ] ''
-              TARGET_DIR="/home/${user.name}/Pictures/wallpapers"
+              TARGET_DIR="/home/${user.name}/Pictures/Wallpapers"
               SRC_PATH="${../../assets/wallpapers}"
-              rm -rf "$TARGET_DIR" || true
-              mkdir -p "$(dirname "$TARGET_DIR")"
-              ln -sfn "$SRC_PATH" "$TARGET_DIR"
+              mkdir -p "$TARGET_DIR"
+              # Symlink nix-managed wallpapers alongside user's own images.
+              # Only touches individual files, never wipes the directory.
+              for f in "$SRC_PATH"/*; do
+                dest="$TARGET_DIR/$(basename "$f")"
+                # Skip if already linking to the same store path
+                if [ -L "$dest" ] && [ "$(readlink "$dest")" = "$f" ]; then
+                  continue
+                fi
+                # Replace stale symlink/file only, not the whole dir
+                rm -f "$dest"
+                ln -s "$f" "$dest"
+              done
             '';
           };
 

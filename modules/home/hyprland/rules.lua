@@ -159,8 +159,8 @@ hl.layer_rule({ match = { namespace = "notifications" }, ignore_alpha = 0.69 })
 -- Logout dialog
 hl.layer_rule({ match = { namespace = "logout_dialog" }, blur = true })
 
--- Rofi
-hl.layer_rule({ match = { namespace = "rofi" }, blur = true })
+-- Launcher blur
+hl.layer_rule({ match = { namespace = "fuzzel" }, blur = true })
 
 -- Quickshell (end4's rules)
 hl.layer_rule({ match = { namespace = "quickshell:.*" }, blur_popups = true })
