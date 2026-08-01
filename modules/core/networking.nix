@@ -106,10 +106,9 @@ in
   };
 
   # Open ports in the firewall.           ssh
-  networking.firewall.allowedTCPPorts = [
-    sshPort
-  ]
-  ++ lib.optionals (vars.rsyncPort or null != null) [ vars.rsyncPort ];
+  networking.firewall.allowedTCPPorts =
+    [ sshPort ]
+    ++ lib.optionals (vars.rsyncPort or null != null) [ vars.rsyncPort ];
   networking.firewall.allowedUDPPorts = [ ];
 
   services.fail2ban = {

@@ -3,8 +3,7 @@ set -u -o pipefail
 
 logger -t monitor-config "starting monitor configuration"
 
-# Known monitors for bnuy's specific 3-monitor desktop setup.
-# Only activates when all three are detected — otherwise no-op.
+# no-op unless all three are detected.
 monitors=(
   "ASUSTek COMPUTER INC ASUS VG249"
   "Acer Technologies SB220Q"
@@ -14,14 +13,14 @@ monitors=(
 connectors=("HDMI-A-1" "DP-3" "DP-1")
 layout_configured=false
 
-# ── X11 (xrandr) ──────────────────────────────────────────────────────
+# X11 (xrandr)
 configure_xrandr() {
   local connected
   connected="$(xrandr --query 2>/dev/null)" || return 1
 
   local all_found=true
   for conn in "${connectors[@]}"; do
-    if ! grep -qi "$conn connected" <<< "$connected"; then
+    if ! grep -qi "$conn connected" <<<"$connected"; then
       logger -t monitor-config "connector $conn not found"
       all_found=false
     fi
@@ -36,21 +35,21 @@ configure_xrandr() {
 
   # Reset all outputs first to avoid mode conflicts
   xrandr --output HDMI-A-1 --off \
-         --output DP-3 --off \
-         --output DP-1 --off
+    --output DP-3 --off \
+    --output DP-1 --off
 
   sleep 0.5
 
   # Configure with ASUS (HDMI-A-1) as primary
   xrandr --output HDMI-A-1 --primary --mode 1920x1080 --rate 144 --pos 0x0 \
-         --output DP-3       --mode 1920x1080 --rate 60  --pos -1920x0 \
-         --output DP-1       --mode 1920x1080 --rate 60  --pos 0x-1080 2>&1 | logger -t monitor-config
+    --output DP-3 --mode 1920x1080 --rate 60 --pos -1920x0 \
+    --output DP-1 --mode 1920x1080 --rate 60 --pos 0x-1080 2>&1 | logger -t monitor-config
 
   layout_configured=true
   logger -t monitor-config "xrandr layout applied successfully"
 }
 
-# ── Wayland (kscreen-doctor) ──────────────────────────────────────────
+# Wayland (kscreen-doctor)
 configure_wayland() {
   if ! command -v kscreen-doctor &>/dev/null; then
     logger -t monitor-config "kscreen-doctor not found"
@@ -72,13 +71,13 @@ configure_wayland() {
 
   logger -t monitor-config "applying kscreen-doctor layout"
   kscreen-doctor output.HDMI-A-1.position.0x0 output.HDMI-A-1.enable \
-                  output.DP-3.position.-1920x0 output.DP-3.enable \
-                  output.DP-1.position.0x-1080 output.DP-1.enable 2>&1 | logger -t monitor-config
+    output.DP-3.position.-1920x0 output.DP-3.enable \
+    output.DP-1.position.0x-1080 output.DP-1.enable 2>&1 | logger -t monitor-config
   layout_configured=true
   logger -t monitor-config "kscreen layout applied successfully"
 }
 
-# ── Detect display server ─────────────────────────────────────────────
+# Detect display server
 sleep 0.5
 
 if [ -n "${DISPLAY:-}" ] || command -v xrandr &>/dev/null; then

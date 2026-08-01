@@ -1,19 +1,22 @@
-{ ... }:
+{ config, lib, ... }:
+
 {
   stylix.targets = {
     # Avoid fetching GNOME Shell sources on non-GNOME systems (breaks on some remotes)
     gnome.enable = false;
 
-    # base16-stylix fish emits OSC palette escapes that override quickshell's
-    # generated kitty theme on every new shell. Let quickshell colors win.
+    # base16-stylix fish resets quickshell themes; let quickshell win
     fish.enable = false;
 
-    hyprland.enable = true;
-    hyprlock.enable = false;
-    ghostty.enable = false;
-    qt = {
-      enable = true;
-      platform = "qtct";
-    };
+    # App theming is owned by quickshell's runtime Material You pipeline
+    gtk.enable = false;
+    qt.enable = false;
+    kitty.enable = false;
+    fuzzel.enable = false;
+    foot.enable = false;
   };
+
+  # quickshell renders its own wallpaper; keep the hyprpaper daemon out
+  # (stylix's hyprland module forces services.hyprpaper.enable = true)
+  services.hyprpaper.enable = lib.mkForce false;
 }

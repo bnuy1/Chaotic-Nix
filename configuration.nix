@@ -8,23 +8,17 @@
   ...
 }:
 let
-  hasServerModules = builtins.length (
-    builtins.attrNames (
-      lib.filterAttrs (_: v: v != null) (vars.serverModules or { })
-    )
-  ) > 0;
+  hasServerModules = lib.filterAttrs (_: v: v != null) (vars.serverModules or { }) != { };
 in
 {
   imports = [
     ./modules/core
     ./hosts/${host}
     inputs.silentSDDM.nixosModules.default
-  ] ++ lib.optionals hasServerModules [
+  ]
+  ++ lib.optionals hasServerModules [
     ./modules/server
   ];
 
   networking.hostName = networkingHostname;
-
-  # Silence boot.zfs.forceImportRoot warning (safe default for all hosts)
-  boot.zfs.forceImportRoot = false;
 }

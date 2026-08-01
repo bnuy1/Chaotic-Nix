@@ -51,7 +51,7 @@ hl.bind("CTRL + SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"),
 hl.bind("CTRL + SUPER + ALT + T", hl.dsp.global("quickshell:wallpaperSelectorRandom"), { description = "Shell: Random wallpaper" })
 hl.bind("CTRL + SUPER + SHIFT + D", hl.dsp.global("quickshell:toggleLightDark"), { description = "Shell: Toggle light/dark mode" })
 hl.bind("CTRL + SUPER + SHIFT + C", hl.dsp.global("quickshell:colorSource:cycle"), { description = "Shell: Cycle color source (MD3/Stylix)" })
-hl.bind("CTRL + SUPER + W", hl.dsp.global("quickshell:colorSource:syncWallpaper"), { description = "Shell: Sync wallpaper to Stylix for next build" })
+hl.bind("SUPER + ALT + L", hl.dsp.exec_cmd("wlogout"), { description = "Session: Logout menu" })
 hl.bind("CTRL + SUPER + R", hl.dsp.exec_cmd("killall qs quickshell; qs -c ii &"), { description = "Shell: Restart widgets" })
 hl.bind("CTRL + SUPER + P", hl.dsp.global("quickshell:panelFamilyCycle"), { description = "Shell: Cycle panel family" })
 

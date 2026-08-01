@@ -22,6 +22,7 @@
         "realtime"
         "gamemode"
         "disk"
+        "input" # /dev/uinput access for WiVRn headset virtual devices
       ];
       shell = "fish"; # Login shell. Supported: "bash", "fish"                (default: "bash")
       sshKeys = [ ];
@@ -90,8 +91,12 @@
   # -- Display ----------------------------------------------------------------
   # Valid: "sddm", "sddm-graphical", "sddm-headless",
   #        "tui",  "tui-headless",   "tui-graphical",
-  #        "ly",   "ly-headless",    "ly-graphical"
-  displayManager = "sddm-graphical";
+  #        "ly",   "ly-headless",    "ly-graphical",
+  #        "quickshell", "quickshell-graphical"
+  #        (quickshell = tty1 getty autologin into the Wayland session, no DM)
+  displayManager = "quickshell-graphical";
+  # User auto-logged on tty1 when displayManager = "quickshell*"
+  autologinUser = "bnuy";
 
   # -- Keyboard / Locale ------------------------------------------------------
   keyboardLayout = "us";
@@ -132,6 +137,7 @@
   # -- Gaming -----------------------------------------------------------------
   steamEnable = true; # Steam + gamescope + gamemode + MangoHud
   sunshineEnable = true; # Game streaming server (port 47990)
+  wivrnEnable = true; # WiVRn VR streaming server (OpenXR, ports 9757/5353)
 
   # -- Virtualisation ---------------------------------------------------------
   dockerEnable = true; # Rootless Docker daemon + lazydocker

@@ -61,10 +61,10 @@ in {
 
   services.displayManager.sddm.settings.Theme.Current = lib.mkIf (dm.name == "sddm") "silent";
 
-  services.gnome.gnome-keyring.enable = dm.name == "sddm";
-  security.pam.services.login.enableGnomeKeyring = dm.name == "sddm";
-  security.pam.services.hyprland.enableGnomeKeyring = dm.name == "sddm";
-  security.pam.services.sddm.enableGnomeKeyring = dm.name == "sddm";
+  services.gnome.gnome-keyring.enable = lib.mkIf (dm.name == "sddm") true;
+  security.pam.services.login.enableGnomeKeyring = lib.mkIf (dm.name == "sddm") true;
+  security.pam.services.hyprland.enableGnomeKeyring = lib.mkIf (dm.name == "sddm") true;
+  security.pam.services.sddm.enableGnomeKeyring = lib.mkIf (dm.name == "sddm") true;
 
   services.xserver.xkb = {
     layout = vars.keyboardLayout;

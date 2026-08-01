@@ -5,8 +5,11 @@
       ./stylix.nix
     ]
     ++ lib.optionals dm.graphical [
+      ./gtk.nix
       ./kitty.nix
-      ./waybar.nix
+      ./fuzzel.nix
+      ./foot.nix
+      ./wlogout.nix
       ./dunst.nix
       ./hyprland
     ];

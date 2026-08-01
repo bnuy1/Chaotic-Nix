@@ -1,12 +1,10 @@
-{ vars, dm, config, ... }:
+{ vars, dm, config, inputs, pkgs, lib, ... }:
 
 let
-  # Filter users who get full HM config (minimal = false)
-  # Only these users will have Hyprland configs
+  # Users with full HM config (minimal = false)
   fullUsers = builtins.filter (user: !(user.minimal or false)) vars.users;
 
   # Generate profiles.lua from variables.nix
-  # This creates the profile list for the keybind switcher
   profilesLua = ''
     -- Profile system for multi-user/keyboard layout support
     -- Nix-generated from variables.nix - DO NOT EDIT MANUALLY
@@ -76,7 +74,6 @@ let
 in
 {
   imports = [
-    ./xdg-desktop-portal.nix
     ../quickshell
   ];
 
@@ -112,6 +109,28 @@ in
     "hypr/scripts" = {
       source = ./scripts;
       recursive = true;
+    };
+
+    # end-4 hyprland scripts used by quickshell ii
+    "hypr/hyprland/scripts" = {
+      source = "${inputs.dots-hyprland}/dots/.config/hypr/hyprland/scripts";
+      recursive = true;
+    };
+  };
+
+  # Lid + battery policy for the locked session (graphical only)
+  systemd.user.services.lockdown = lib.mkIf dm.graphical {
+    unitConfig = {
+      Description = "Lockdown: lid and locked-session battery policy";
+      PartOf = [ "graphical-session.target" ];
+      After = [ "graphical-session.target" ];
+      WantedBy = [ "graphical-session.target" ];
+    };
+    serviceConfig = {
+      Type = "simple";
+      ExecStart = "${pkgs.bash}/bin/bash ${config.xdg.configFile."hypr/scripts".source}/lockdown.sh";
+      Restart = "always";
+      RestartSec = 2;
     };
   };
 }

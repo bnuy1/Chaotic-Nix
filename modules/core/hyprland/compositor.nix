@@ -12,10 +12,13 @@ in lib.mkIf graphical {
       xdg-desktop-portal-hyprland
       xdg-desktop-portal-gtk
     ];
-
     # Enable FileChooser portal (needed by LibreWolf, GTK apps)
     configPackages = with pkgs; [
       xdg-desktop-portal-gtk
+    ];
+    config.common.default = [
+      "hyprland"
+      "gtk"
     ];
   };
 }

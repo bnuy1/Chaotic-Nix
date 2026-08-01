@@ -9,9 +9,6 @@ let
 in
 lib.mkIf graphical {
   environment.systemPackages = with pkgs; [
-    waybar
     hypridle
-    hyprlock
-    awww
   ];
 }

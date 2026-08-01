@@ -5,14 +5,12 @@ let
 
   palette = config.lib.stylix.colors;
 
-  # Default clock format follows the clock24h variable:
-  # true  -> 24-hour "hh:mm", false -> 12-hour AM/PM "h:mm ap"
+  # 24h "hh:mm" when clock24h, else 12h "h:mm ap"
   timeFormatDefault =
     if (vars.clock24h or false) then "hh:mm"
     else "h:mm ap";
 
-  # vars.systemFont is the nix package attr ("iosevka"); the fontconfig
-  # family name is the capitalized form ("Iosevka")
+  # Capitalize the systemFont attr for the fontconfig family name
   fontFamily = let
     s = vars.systemFont or "iosevka";
   in "${lib.toUpper (builtins.substring 0 1 s)}${builtins.substring 1 (builtins.stringLength s) s}";
@@ -118,6 +116,17 @@ in
       python3
       python3Packages.pillow
 
+      # Runtime tools called by ii modules and hyprland binds
+      grim            # screenshots (ScreenshotAction.qml, Recorder.qml)
+      slurp           # region selection (ScreenshotAction.qml)
+      swappy          # screenshot editor (TempScreenshotProcess.qml)
+      wf-recorder     # screen recording (Recorder.qml, record.sh)
+      cliphist        # clipboard history (Cliphist.qml, autostart.lua)
+      playerctl       # media keys (binds.lua, MprisController.qml)
+      tesseract       # OCR (ScreenshotAction.qml)
+      brightnessctl   # brightness keys (binds.lua, Brightness.qml)
+      ddcutil         # monitor brightness fallback (Brightness.qml)
+
       # Fonts required by end4's config
       material-symbols
       nerd-fonts.jetbrains-mono
@@ -191,6 +200,37 @@ in
 
       chmod +x "$II_DIR/scripts/"* 2>/dev/null || true
 
+      # Remove the "Random: osu! seasonal" button (osu.ppy.sh API v2 403s
+      # without OAuth2; user chose to drop the feature rather than register
+      # an OAuth client). Keyed on content so it survives end-4 input updates.
+      export QUICKCONFIG_QML="$II_DIR/modules/settings/QuickConfig.qml"
+      if [ -f "$QUICKCONFIG_QML" ] && grep -q 'random_osu_wall.sh' "$QUICKCONFIG_QML" 2>/dev/null; then
+        python3 << 'PYEOF'
+import os
+p = os.environ['QUICKCONFIG_QML']
+src = open(p).read()
+i = src.find('random_osu_wall.sh')
+start = src.rfind('RippleButtonWithIcon {', 0, i)
+if start != -1:
+    depth = 0
+    j = start
+    while j < len(src):
+        if src[j] == '{':
+            depth += 1
+        elif src[j] == '}':
+            depth -= 1
+            if depth == 0:
+                break
+        j += 1
+    end = j + 1
+    while end < len(src) and src[end] in ' \t':
+        end += 1
+    if end < len(src) and src[end] == '\n':
+        end += 1
+    open(p, 'w').write(src[:start] + src[end:])
+PYEOF
+      fi
+
       # Copy shapes submodule
       SHAPES_DIR="$II_DIR/modules/common/widgets/shapes"
       mkdir -p "$SHAPES_DIR" 2>/dev/null || true
@@ -211,6 +251,34 @@ in
       ${stylixColorsJson}
 STYLIX_EOF
       chown "$(stat -c '%u:%g' "$HOME")" "$STATE_GEN_DIR/stylix-colors.json"
+
+      # Deploy the latest apply-app-themes.sh into the ii dir and chmod +x.
+      # A raw ''${./file} reference copies to the store as 0644, so the wrapper
+      # and this activation could never execute it (silently, due to `|| true`).
+      mkdir -p "$II_DIR/scripts/colors" 2>/dev/null || true
+      rm -f "$II_DIR/scripts/colors/apply-app-themes.sh" 2>/dev/null || true
+      cp ${./apply-app-themes.sh} "$II_DIR/scripts/colors/apply-app-themes.sh" 2>/dev/null || true
+      chmod +x "$II_DIR/scripts/colors/apply-app-themes.sh" 2>/dev/null || true
+      chown "$(stat -c '%u:%g' "$HOME")" "$II_DIR/scripts/colors/apply-app-themes.sh" 2>/dev/null || true
+
+      # Deploy the patched color generator. Upstream only harmonizes terminal
+      # colors toward the primary hue (a no-op at harmony=0.05), so the
+      # terminal never follows the wallpaper or the palette mode. The patched
+      # version rotates the six vivid ANSI hues with the scheme's primary hue.
+      rm -f "$II_DIR/scripts/colors/generate_colors_material.py" 2>/dev/null || true
+      cp ${./scripts/generate_colors_material.py} "$II_DIR/scripts/colors/generate_colors_material.py" 2>/dev/null || true
+      chmod +x "$II_DIR/scripts/colors/generate_colors_material.py" 2>/dev/null || true
+      chown "$(stat -c '%u:%g' "$HOME")" "$II_DIR/scripts/colors/generate_colors_material.py" 2>/dev/null || true
+
+      # Pre-generate app themes (fuzzel/gtk/foot/fish/wlogout) at activation so
+      # they exist before the first palette sync. Without this, foot refuses to
+      # start (its include file is missing). Falls back to Stylix colors; the
+      # runtime palette overwrites these after the first quickshell color sync.
+      if [ ! -s "$STATE_GEN_DIR/colors.json" ] && [ -s "$STATE_GEN_DIR/stylix-colors.json" ]; then
+        cp "$STATE_GEN_DIR/stylix-colors.json" "$STATE_GEN_DIR/colors.json"
+        chown "$(stat -c '%u:%g' "$HOME")" "$STATE_GEN_DIR/colors.json"
+      fi
+      bash "$II_DIR/scripts/colors/apply-app-themes.sh" >/dev/null 2>&1 || true
 
       # Copy ColorSourceBridge (watches palette type & wallpaper changes)
       # Try non-interactive sudo if II_DIR is not writable (transition from root-owned files)
@@ -266,13 +334,15 @@ path = '$II_DIR/modules/common/Config.qml'
 with open(path) as f:
     content = f.read()
 
-# Better terminal color defaults: less harmony (more distinct hues), less boost (not washed out)
+# Better terminal color defaults: near-passthrough harmony so the vivid
+# HCT base keeps its hue identity (red/blue must not wrap across the hue
+# wheel seam toward the wallpaper accent), minimal boost (not washed out)
 old_harmony = 'property real harmony: 0.6'
-new_harmony = 'property real harmony: 0.25'
+new_harmony = 'property real harmony: 0.05'
 old_threshold = 'property real harmonizeThreshold: 100'
-new_threshold = 'property real harmonizeThreshold: 75'
+new_threshold = 'property real harmonizeThreshold: 40'
 old_boost = 'property real termFgBoost: 0.35'
-new_boost = 'property real termFgBoost: 0.15'
+new_boost = 'property real termFgBoost: 0.05'
 if old_harmony in content:
     content = content.replace(old_harmony, new_harmony)
 if old_threshold in content:
@@ -362,6 +432,27 @@ donate_block = (
     '            }\n')
 content = content.replace(donate_block, "")
 
+# Drop Help & Support and Privacy Policy buttons from the Distro section
+help_support_block = (
+    '            RippleButtonWithIcon {\n'
+    '                materialIcon: "support"\n'
+    '                mainText: Translation.tr("Help & Support")\n'
+    '                onClicked: {\n'
+    '                    Qt.openUrlExternally(SystemInfo.supportUrl)\n'
+    '                }\n'
+    '            }\n')
+content = content.replace(help_support_block, "")
+privacy_block = (
+    '            RippleButtonWithIcon {\n'
+    '                materialIcon: "policy"\n'
+    '                materialIconFill: false\n'
+    '                mainText: Translation.tr("Privacy Policy")\n'
+    '                onClicked: {\n'
+    '                    Qt.openUrlExternally(SystemInfo.privacyPolicyUrl)\n'
+    '                }\n'
+    '            }\n')
+content = content.replace(privacy_block, "")
+
 # Point remaining end-4 links at bnuynix
 content = content.replace('https://github.com/end-4/dots-hyprland', 'https://github.com/bnuy1/bnuynix')
 content = content.replace('https://end-4.github.io/dots-hyprland-wiki/en/ii-qs/02usage/', 'https://github.com/bnuy1/bnuynix')
@@ -431,21 +522,22 @@ detect_stylix() {
 compute_cache_key() {
     local wp=""
     local mode=""
+    local ptype=""
     while [[ $# -gt 0 ]]; do
       case "$1" in
         --image) wp="$2"; shift 2 ;;
         --mode) mode="$2"; shift 2 ;;
+        --type) ptype="$2"; shift 2 ;;
         *) shift ;;
       esac
     done
     [[ -z "$wp" ]] && wp=$(jq -r '.background.wallpaperPath // ""' "$SHELL_CONFIG" 2>/dev/null)
-    local ptype
-    ptype=$(jq -r '.appearance.palette.type // "auto"' "$SHELL_CONFIG" 2>/dev/null)
+    [[ -z "$ptype" ]] && ptype=$(jq -r '.appearance.palette.type // "auto"' "$SHELL_CONFIG" 2>/dev/null)
     [[ -z "$mode" ]] && mode=$(jq -r '.appearance.palette.mode // "dark"' "$SHELL_CONFIG" 2>/dev/null)
     local harmony harmonize_threshold term_fg_boost
-    harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony // "0.25"' "$SHELL_CONFIG" 2>/dev/null)
-    harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // "75"' "$SHELL_CONFIG" 2>/dev/null)
-    term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // "0.15"' "$SHELL_CONFIG" 2>/dev/null)
+    harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony // "0.1"' "$SHELL_CONFIG" 2>/dev/null)
+    harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // "15"' "$SHELL_CONFIG" 2>/dev/null)
+    term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // "0.05"' "$SHELL_CONFIG" 2>/dev/null)
     echo "$wp|$ptype|$mode|$harmony|$harmonize_threshold|$term_fg_boost" | md5sum | cut -d' ' -f1
 }
 
@@ -462,16 +554,21 @@ write_cache() {
     echo "$key" > "$GEN_DIR/.wallpaper-cache"
 }
 
-# Set better terminal color defaults (less harmony, less boost)
+# Force sane terminal color generation. The shipped end-4 defaults
+# (harmony 0.8 / threshold 10 / boost 0.3) wash the base scheme toward the
+# wallpaper accent. The patched generator now rotates the six chroma ANSI
+# hues with the scheme's primary hue (fixed 40° offsets, chroma >= 90), so
+# they follow the wallpaper AND the palette mode while staying distinct;
+# harmony is kept at a near-passthrough 0.05 so the neutral slots
+# (term7/term8) don't shift, and bg/fg/term15 still follow the wallpaper
+# via --blend_bg_fg. enableQtApps=false also neuters the broken KDE
+# material wrapper call.
 set_terminal_defaults() {
-    # Only set if not already explicitly configured
-    local harmony harmonize_threshold term_fg_boost
-    harmony=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmony // "null"' "$SHELL_CONFIG" 2>/dev/null)
-    harmonize_threshold=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // "null"' "$SHELL_CONFIG" 2>/dev/null)
-    term_fg_boost=$(jq -r '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // "null"' "$SHELL_CONFIG" 2>/dev/null)
-    [[ "$harmony" == "null" || -z "$harmony" ]] && jq '.appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.25' "$SHELL_CONFIG" > "''${SHELL_CONFIG}.tmp" && mv "''${SHELL_CONFIG}.tmp" "$SHELL_CONFIG" 2>/dev/null || true
-    [[ "$harmonize_threshold" == "null" || -z "$harmonize_threshold" ]] && jq '.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 75' "$SHELL_CONFIG" > "''${SHELL_CONFIG}.tmp" && mv "''${SHELL_CONFIG}.tmp" "$SHELL_CONFIG" 2>/dev/null || true
-    [[ "$term_fg_boost" == "null" || -z "$term_fg_boost" ]] && jq '.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost = 0.15' "$SHELL_CONFIG" > "''${SHELL_CONFIG}.tmp" && mv "''${SHELL_CONFIG}.tmp" "$SHELL_CONFIG" 2>/dev/null || true
+    jq '.appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.05
+        | .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 40
+        | .appearance.wallpaperTheming.terminalGenerationProps.termFgBoost = 0.05
+        | .appearance.wallpaperTheming.enableQtApps = false' "$SHELL_CONFIG" \
+        > "''${SHELL_CONFIG}.tmp" && mv "''${SHELL_CONFIG}.tmp" "$SHELL_CONFIG" 2>/dev/null || true
 }
 
 # Check for --no-cache flag to force regeneration
@@ -502,6 +599,7 @@ if detect_stylix "''${FWD_ARGS[@]}"; then
     bash "$ORIGINAL" "''${FWD_ARGS[@]}" 2>/dev/null || true
   fi
   cp "$GEN_DIR/stylix-colors.json" "$GEN_DIR/colors.json" 2>/dev/null || true
+  bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
   write_cache "''${FWD_ARGS[@]}"
   eval "$RELOAD_HOOK"
   exit 0
@@ -512,6 +610,7 @@ fi
 if $HAS_NOSWITCH && ! $NO_CACHE && check_cache "''${FWD_ARGS[@]}" && [ -s "$GEN_DIR/colors.json" ]; then
   # Cache hit - just trigger reload with existing colors
   log_cache "CACHE HIT | key=$(cat "$GEN_DIR/.wallpaper-cache" 2>/dev/null) | args=''${FWD_ARGS[*]}"
+  bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
   eval "$RELOAD_HOOK"
   exit 0
 fi
@@ -542,6 +641,7 @@ with open(os.environ['JSON_FILE'], 'w') as f:
     json.dump(colors, f)
 PYEOF
   fi
+  bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
   write_cache "''${FWD_ARGS[@]}"
   eval "$RELOAD_HOOK"
 else
@@ -551,6 +651,106 @@ fi
 WRAPPER
       sed -i "s|__STDCXX_LIB__|$STDCXX_LIB|g" "$II_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
       chmod +x "$II_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
+
+      # Fix the IFS leak in applycolor.sh: IFS=$'\n' is set when building the
+      # color arrays and never restored, so `$(pidof kitty)` never word-splits
+      # and the SIGUSR1 kitty reload always fails ("not a pid or valid job
+      # spec") - the running terminal never picks up regenerated colors after
+      # a wallpaper change. Keyed on content so it survives end-4 input updates.
+      export APPLYCOLOR_SH="$II_DIR/scripts/colors/applycolor.sh"
+      if [ -f "$APPLYCOLOR_SH" ] && \
+         ! grep -q 'unset IFS # Restore default splitting' "$APPLYCOLOR_SH" 2>/dev/null; then
+        python3 << 'PYEOF'
+import os
+p = os.environ['APPLYCOLOR_SH']
+src = open(p).read()
+needle = "colorvalues=($colorstrings) # Array of color values"
+fix = needle + "\nunset IFS # Restore default splitting so `$(pidof kitty)` in apply_kitty splits on spaces"
+if needle in src and "unset IFS" not in src:
+    open(p, 'w').write(src.replace(needle, fix, 1))
+PYEOF
+      fi
+
+      # Replace the shipped Gruvbox terminal scheme with a vivid HCT-canonical
+      # base: six distinct hues (red 27 / green 145 / yellow 88 / blue 255 /
+      # magenta 330 / cyan 190), near-zero-chroma neutrals, near-white term7.
+      # With the near-passthrough harmony forced above, these hues keep their
+      # identity across wallpapers while --blend_bg_fg keeps bg/fg/term15
+      # wallpaper-driven. Keyed on our term1 marker so end-4 input updates
+      # can't restore Gruvbox without re-clobbering our file.
+      SCHEME_FILE="$II_DIR/scripts/colors/terminal/scheme-base.json"
+      if [ -f "$SCHEME_FILE" ]; then
+        if ! grep -qF '"term1"' "$SCHEME_FILE" || grep -qF '#CC241D' "$SCHEME_FILE"; then
+          cat > "$SCHEME_FILE" << 'SCHEME_JSON'
+{
+  "dark": {
+    "term0": "#131313",
+    "term1": "#FF614E",
+    "term2": "#00AE2B",
+    "term3": "#C89A00",
+    "term4": "#1A9AFF",
+    "term5": "#F158FF",
+    "term6": "#00AEA4",
+    "term7": "#F3F3F3",
+    "term8": "#8B8B8B",
+    "term9": "#FF816F",
+    "term10": "#06C634",
+    "term11": "#E3AE00",
+    "term12": "#67AFFF",
+    "term13": "#F779FF",
+    "term14": "#00BFB5",
+    "term15": "#FCFCFC"
+  },
+  "light": {
+    "term0": "#F9F9F9",
+    "term1": "#C5180F",
+    "term2": "#007419",
+    "term3": "#8F6D00",
+    "term4": "#006DBA",
+    "term5": "#B800CB",
+    "term6": "#007871",
+    "term7": "#353535",
+    "term8": "#7C7C7C",
+    "term9": "#8B0001",
+    "term10": "#004E0E",
+    "term11": "#654C00",
+    "term12": "#00497F",
+    "term13": "#7D008B",
+    "term14": "#00504B",
+    "term15": "#1B1B1B"
+  }
+}
+SCHEME_JSON
+        fi
+      fi
+
+      # Kitty template: foreground/cursor should follow the wallpaper surface
+      # (bright, non-grey) instead of $term7. onSurface is material's
+      # foreground and is always present in material_colors.scss, so
+      # applycolor.sh fills it the same way as the $termN tokens.
+      KITTY_TEMPLATE="$II_DIR/scripts/colors/terminal/kitty-theme.conf"
+      if [ -f "$KITTY_TEMPLATE" ] && grep -qF 'foreground            #$term7 #' "$KITTY_TEMPLATE" 2>/dev/null; then
+        sed -i -e 's/foreground            #\$term7 #/foreground            #$onSurface #/' \
+               -e 's/^cursor                #\$term7 #/cursor                #$onSurface #/' \
+               "$KITTY_TEMPLATE" 2>/dev/null || true
+      fi
+
+      # The end-4 switchwall.sh.bak calls handle_kde_material_you_colors (a
+      # matugen KDE wrapper that is never installed), which errors every
+      # regen. enableQtApps=false (forced in set_terminal_defaults) already
+      # short-circuits it; drop the call so it stays inert even if Qt
+      # theming is re-enabled later.
+      if [ -f "$II_DIR/scripts/colors/switchwall.sh.bak" ] && \
+         grep -qF '    handle_kde_material_you_colors &' "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null; then
+        sed -i 's|^    handle_kde_material_you_colors &$|    # handle_kde_material_you_colors disabled: matugen KDE wrapper is not installed|' "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null || true
+      fi
+
+      # Replace the random wallpaper scripts with hardened copies that validate
+      # every step (osu.ppy.sh API v2 now 403s without OAuth2; the shipped
+      # scripts fed empty/corrupt files to switchwall and crashed the shell).
+      mkdir -p "$II_DIR/scripts/colors/random" 2>/dev/null || true
+      cp ${./scripts/random_konachan_wall.sh} "$II_DIR/scripts/colors/random/random_konachan_wall.sh" 2>/dev/null || true
+      chmod +x "$II_DIR/scripts/colors/random/"*.sh 2>/dev/null || true
 
       # Create Python virtual environment for color generation
       VENV_DIR="$HOME/.local/state/quickshell/.venv"
@@ -568,21 +768,26 @@ WRAPPER
         deactivate 2>/dev/null || true
       fi
 
-      # Migrate terminal generation props to better contrast defaults.
-      # Only update values that still match the old defaults (harmony=0.6, threshold=100, boost=0.35),
-      # so user customizations are preserved.
+      # Migrate terminal generation props to the vivid near-passthrough
+      # defaults (harmony=0.05, threshold=40, boost=0.05) and disable Qt
+      # theming. Only update values that still match previously shipped
+      # defaults (0.6 or 0.25 harmony, etc.), preserving user customizations.
       SHELL_CONFIG_JSON="''${XDG_CONFIG_HOME:-$HOME/.config}/illogical-impulse/config.json"
       if [ -f "$SHELL_CONFIG_JSON" ]; then
         jq '
-          if (.appearance.wallpaperTheming.terminalGenerationProps.harmony // 0) == 0.6 then
-            .appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.25
+          if (.appearance.wallpaperTheming.terminalGenerationProps.harmony // 0) == 0.6 or
+             (.appearance.wallpaperTheming.terminalGenerationProps.harmony // 0) == 0.25 then
+            .appearance.wallpaperTheming.terminalGenerationProps.harmony = 0.05
           else . end
-          | if (.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // 0) == 100 then
-            .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 75
+          | if (.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // 0) == 100 or
+               (.appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold // 0) == 75 then
+            .appearance.wallpaperTheming.terminalGenerationProps.harmonizeThreshold = 40
           else . end
-          | if (.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // 0) == 0.35 then
-            .appearance.wallpaperTheming.terminalGenerationProps.termFgBoost = 0.15
+          | if (.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // 0) == 0.35 or
+               (.appearance.wallpaperTheming.terminalGenerationProps.termFgBoost // 0) == 0.15 then
+            .appearance.wallpaperTheming.terminalGenerationProps.termFgBoost = 0.05
           else . end
+          | .appearance.wallpaperTheming.enableQtApps = false
         ' "$SHELL_CONFIG_JSON" > "$SHELL_CONFIG_JSON.tmp" 2>/dev/null && mv "$SHELL_CONFIG_JSON.tmp" "$SHELL_CONFIG_JSON" 2>/dev/null || true
       fi
     '';

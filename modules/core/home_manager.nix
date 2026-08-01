@@ -81,7 +81,7 @@ in {
             EDITOR = vars.editor or "nvim";
             VISUAL = vars.editor or "nvim";
             SUDO_EDITOR = vars.editor or "nvim";
-          } // lib.optionalAttrs (vars.browser or null != null) {
+          } // lib.optionalAttrs ((vars.browser or null) != null) {
             BROWSER = vars.browser;
           };
 
@@ -112,8 +112,7 @@ in {
               TARGET_DIR="/home/${user.name}/Pictures/Wallpapers"
               SRC_PATH="${../../assets/wallpapers}"
               mkdir -p "$TARGET_DIR"
-              # Symlink nix-managed wallpapers alongside user's own images.
-              # Only touches individual files, never wipes the directory.
+              # Symlink nix-managed wallpapers alongside user's own images
               for f in "$SRC_PATH"/*; do
                 dest="$TARGET_DIR/$(basename "$f")"
                 # Skip if already linking to the same store path

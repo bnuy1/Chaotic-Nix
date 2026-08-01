@@ -12,6 +12,8 @@ let
     ly             = { name = "ly";    graphical = false; };
     ly-headless    = { name = "ly";    graphical = false; };
     ly-graphical   = { name = "ly";    graphical = true;  };
+    quickshell     = { name = "quickshell"; graphical = true; };
+    quickshell-graphical = { name = "quickshell"; graphical = true; };
   }.${raw} or (throw "invalid displayManager \"${raw}\"");
 in {
   options.custom.displayManagerParsed = lib.mkOption {
@@ -23,5 +25,6 @@ in {
   imports = [
     ./sddm.nix
     ./ly.nix
+    ./quickshell.nix
   ];
 }

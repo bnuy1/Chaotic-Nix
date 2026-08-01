@@ -66,7 +66,6 @@ in
     ++ lib.optionals dm.graphical [
       # GUI
       kdePackages.kate
-      fuzzel
       krita
       gnome-multi-writer
       pavucontrol
@@ -100,6 +99,13 @@ in
       set -g __done_exclude 'nvim|vi|emacs|tldr|htop|top|nvtop|vim|nano|man|less'
       set -g __done_notification_command "notify-send -u low -i terminal \"\$title\" \"\$message\""
       set -U __done_notify_sound 1
+    '';
+
+    # tty1 autologin via uwsm; guarded against SSH/tty2-6/already-graphical shells
+    loginShellInit = lib.mkIf dm.graphical ''
+      if not set -q WAYLAND_DISPLAY; and not set -q DISPLAY; and not set -q SSH_CONNECTION; and string match -q '/dev/tty1' (tty)
+          exec uwsm start Hyprland
+      end
     '';
 
     plugins = [

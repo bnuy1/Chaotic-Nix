@@ -5,7 +5,7 @@ hl.on("hyprland.start", function()
     -- Blue light filter
     hl.exec_cmd("hyprsunset")
 
-    -- Quickshell (replaces waybar) - using wrapper for Stylix color integration
+    -- Quickshell via wrapper for Stylix color integration
     hl.exec_cmd(HOME .. "/.config/quickshell/launch.sh")
 
     -- Signal desktop on workspace 2
@@ -18,9 +18,6 @@ hl.on("hyprland.start", function()
 
     -- Monitor workspace assignment script
     hl.exec_cmd(HOME .. "/.config/hypr/scripts/unique-monitor-config.sh")
-
-    -- Wallpaper (using awww-daemon)
-    hl.exec_cmd(HOME .. "/.config/hypr/scripts/Wallpaper.sh")
 
     -- Clipboard history
     hl.exec_cmd("wl-paste --type text --watch cliphist store")
