@@ -2,20 +2,20 @@
   description = "Agnostic Multi-Host NixOS Configuration";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-26.05";
+    nixpkgs.url = "github:nixos/nixpkgs";
 
     home-manager = {
-      url = "github:nix-community/home-manager/release-26.05";
+      url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     nixvim = {
-      url = "github:nix-community/nixvim/nixos-26.05";
+      url = "github:nix-community/nixvim";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     stylix = {
-      url = "github:danth/stylix/release-26.05";
+      url = "github:danth/stylix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -31,7 +31,7 @@
     };
 
     lanzaboote = {
-      url = "github:nix-community/lanzaboote/v1.1.0";
+      url = "github:nix-community/lanzaboote";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -44,6 +44,12 @@
     rounded-polygon = {
       url = "github:end-4/rounded-polygon-qmljs";
       flake = false;
+    };
+
+    # Spicetify theme manager for Spotify (home-manager module)
+    spicetify-nix = {
+      url = "github:Gerg-L/spicetify-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
 
   };
@@ -62,9 +68,8 @@
       # Builds a list of every folder name inside /etc/nixos/hosts/
       # skip dirs without variables.nix (e.g. build artifacts like result/)
       myHosts = builtins.attrNames (
-        nixpkgs.lib.filterAttrs (name: type:
-          type == "directory"
-          && builtins.pathExists (hostDir + "/${name}/variables.nix")
+        nixpkgs.lib.filterAttrs (
+          name: type: type == "directory" && builtins.pathExists (hostDir + "/${name}/variables.nix")
         ) allHostFolders
       );
 
@@ -86,19 +91,21 @@
         in
         nixpkgs.lib.nixosSystem {
           # This sends 'inputs', 'networkingHostname', 'host', and 'vars' to EVERY file
-          specialArgs = let
-            # Load default vars first, then merge host vars on top
-            # Hosts only need to override what differs from default
-            defaultVars = import (hostDir + "/default/variables.nix");
-            hostVars = import (matchedPath + "/variables.nix");
-          in {
-            inherit inputs;
-            inherit networkingHostname; # The actual target hostname (e.g., "arbitrary-name")
-            host = matchedHost; # The folder matched (e.g., "default" or "antimatter")
+          specialArgs =
+            let
+              # Load default vars first, then merge host vars on top
+              # Hosts only need to override what differs from default
+              defaultVars = import (hostDir + "/default/variables.nix");
+              hostVars = import (matchedPath + "/variables.nix");
+            in
+            {
+              inherit inputs;
+              inherit networkingHostname; # The actual target hostname (e.g., "arbitrary-name")
+              host = matchedHost; # The folder matched (e.g., "default" or "antimatter")
 
-            # Safely loads variables from the matched folder, preventing missing file crashes
-            vars = nixpkgs.lib.recursiveUpdate defaultVars hostVars;
-          };
+              # Safely loads variables from the matched folder, preventing missing file crashes
+              vars = nixpkgs.lib.recursiveUpdate defaultVars hostVars;
+            };
 
           modules = [
             ./configuration.nix

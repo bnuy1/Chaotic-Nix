@@ -1,4 +1,5 @@
--- Appearance: gaps/borders + end4 animations; colors via Stylix (HYPRLAND_PALETTE)
+-- Appearance: gaps/borders + end4 animations; colors via custom/colors.lua
+-- (seeded once by Nix; preserved across builds)
 
 hl.monitor({
 	output = "desc:ASUSTek COMPUTER INC ASUS VG249 0x00009A40",
@@ -31,32 +32,6 @@ hl.monitor({
 	position = "auto",
 	scale = "auto",
 })
-
--- Variables
-
--- App launchers with fallback
-terminal = launch_first_available("kitty", "foot", "alacritty", "wezterm")
-fileManager = launch_first_available("dolphin", "nautilus", "thunar", "pcmanfm-qt")
-browser = launch_first_available("librewolf", "firefox", "google-chrome-stable", "chromium")
-codeEditor = launch_first_available("code", "codium", "cursor", "zed")
-
-workspaceGroupSize = 10
-
--- Environment
-
-hl.env("XCURSOR_SIZE", "24")
-hl.env("HYPRCURSOR_SIZE", "24")
-hl.env("ELECTRON_OZONE_PLATFORM_HINT", "auto")
-hl.env("XDG_CURRENT_DESKTOP", "Hyprland")
-
--- Stylix palette for Quickshell (Nix-generated palette.json)
-local palette_file = io.open(HOME .. "/.config/hypr/palette.json", "r")
-local palette_json = "{}"
-if palette_file then
-	palette_json = palette_file:read("*a")
-	palette_file:close()
-end
-hl.env("HYPRLAND_PALETTE", palette_json)
 
 -- Permissions
 
@@ -220,45 +195,10 @@ hl.config({
 })
 
 -- Per-device config
-hl.device({
-	name = "epic-mouse-v1",
-	sensitivity = -0.5,
-})
-
--- Gestures
-hl.gesture({
-	fingers = 3,
-	direction = "swipe",
-	action = "move",
-})
-
-hl.gesture({
-	fingers = 3,
-	direction = "pinch",
-	action = "fullscreen",
-})
-
-hl.gesture({
-	fingers = 4,
-	direction = "horizontal",
-	action = "workspace",
-})
-
-hl.gesture({
-	fingers = 4,
-	direction = "up",
-	action = function()
-		hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))
-	end,
-})
-
-hl.gesture({
-	fingers = 4,
-	direction = "down",
-	action = function()
-		hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))
-	end,
-})
+ hl.device({
+ 	name = "epic-mouse-v1",
+ 	sensitivity = -0.5,
+ })
 
 -- Animation curves
 

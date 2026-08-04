@@ -14,21 +14,14 @@ Singleton {
     readonly property string srcPath: `${root.stateDir}/user/generated/stylix-colors.json`
     readonly property string dstPath: `${root.stateDir}/user/generated/colors.json`
 
-    Timer {
-        id: applyTimer
-        interval: 3000
-        repeat: false
-        running: false
-        onTriggered: {
-            MaterialThemeLoader.reapplyTheme()
-        }
-    }
+    readonly property string reloadCmd:
+        `quickshell -c ii ipc call theme applyTheme 2>/dev/null || true`
 
+    // write to tmp then rename, reload chained to the write
     function syncStylixColors() {
         Quickshell.execDetached(["bash", "-c",
-            `cp "${root.srcPath}" "${root.dstPath}" 2>/dev/null || true`
+            `tmp="${root.dstPath}.tmp.$$" && cp "${root.srcPath}" "$tmp" && mv -f "$tmp" "${root.dstPath}" && ${root.reloadCmd} || true`
         ])
-        applyTimer.start()
     }
 
     function syncColors() {
@@ -38,10 +31,10 @@ Singleton {
             root.syncStylixColors()
         } else {
             const mode = Appearance.m3colors.darkmode ? "dark" : "light"
+            // switchwall.sh already reloads after writing so no timer here
             Quickshell.execDetached(["bash", "-c",
                 `${Directories.wallpaperSwitchScriptPath} --noswitch --mode ${mode} --type ${type} 2>/dev/null || true`
             ])
-            applyTimer.start()
         }
     }
 

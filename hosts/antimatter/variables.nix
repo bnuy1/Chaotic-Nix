@@ -94,7 +94,7 @@
   #        "ly",   "ly-headless",    "ly-graphical",
   #        "quickshell", "quickshell-graphical"
   #        (quickshell = tty1 getty autologin into the Wayland session, no DM)
-  displayManager = "quickshell-graphical";
+  displayManager = "quickshell";
   # User auto-logged on tty1 when displayManager = "quickshell*"
   autologinUser = "bnuy";
 
@@ -192,8 +192,8 @@
     pterodactyl = null;
     vpn = null;
     technitium = null;
-    netboot = {
-      listenIp = "192.168.1.166";
-    };
+    # Netboot lives on singularity (rack LAN) — serving DHCP from the workstation
+    # broke the home network. See plan.md.
+    netboot = null;
   };
 }

@@ -11,6 +11,7 @@
       ./foot.nix
       ./wlogout.nix
       ./dunst.nix
+      ./spicetify.nix
       ./hyprland
     ];
 }

@@ -111,9 +111,8 @@
         type = "ethernet";
       };
       ipv4 = {
-        method = "manual";
-        addresses = "192.168.1.2/24;";
-        gateway = "192.168.1.1";
+        # DHCP from rack router 192.168.2.2 (reserved 192.168.2.3)
+        method = "auto";
       };
     };
     "enp0s31f6" = {
@@ -122,28 +121,28 @@
         type = "ethernet";
       };
       ipv4 = {
-        method = "manual";
-        addresses = "192.168.1.3/24;";
-        gateway = "192.168.1.1";
+        # DHCP from rack router 192.168.2.2 (reserved 192.168.2.4, netboot interface)
+        method = "auto";
       };
     };
   };
 
   # Initrd Remote Unlock
   # SSH into port 2222, enter passphrases, system boots
+  # Static pre-DHCP addresses so unlock works regardless of reservations.
   initrdUnlock = {
     enable = true;
     networks = {
       "10-enp3s0" = {
         matchConfig.Name = "enp3s0";
-        address = [ "192.168.1.2/24" ];
-        routes = [ { Gateway = "192.168.1.1"; } ];
+        address = [ "192.168.2.3/24" ];
+        routes = [ { Gateway = "192.168.2.2"; } ];
         linkConfig.RequiredForOnline = "routable";
       };
       "10-enp0s31f6" = {
         matchConfig.Name = "enp0s31f6";
-        address = [ "192.168.1.3/24" ];
-        routes = [ { Gateway = "192.168.1.1"; } ];
+        address = [ "192.168.2.4/24" ];
+        routes = [ { Gateway = "192.168.2.2"; } ];
         linkConfig.RequiredForOnline = "routable";
       };
     };
@@ -192,10 +191,15 @@
   serverModules = {
     pterodactyl = true;
     vpn = true;
-    technitium = true;
+    technitium = {
+      # Serve DNS to the home LAN via rack router 192.168.2.2
+      listenAddress = "192.168.2.3";
+    };
     remoteUnlock = true;
     netboot = {
-      listenIp = "192.168.1.166";
+      # Netboot interface is LAN-only (never leaves the rack)
+      listenIp = "192.168.2.4";
+      interface = "enp0s31f6";
     };
   };
 }

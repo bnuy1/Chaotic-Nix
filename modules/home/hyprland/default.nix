@@ -1,76 +1,41 @@
 { vars, dm, config, inputs, pkgs, lib, ... }:
 
 let
-  # Users with full HM config (minimal = false)
-  fullUsers = builtins.filter (user: !(user.minimal or false)) vars.users;
+  # end-4 upstream hyprland/ config (deployed as a writable copy, overwritten every build)
+  hyprlandSource = "${inputs.dots-hyprland}/dots/.config/hypr/hyprland";
 
-  # Generate profiles.lua from variables.nix
-  profilesLua = ''
-    -- Profile system for multi-user/keyboard layout support
-    -- Nix-generated from variables.nix - DO NOT EDIT MANUALLY
-
-    profiles = {
-    ${builtins.concatStringsSep "\n" (map (user: ''
-      { name = "${user.name}", layout = "us", variant = "" },
-    '') fullUsers)}
-    }
-
-    -- Find current user's profile index
-    current_user = os.getenv("USER") or "${if builtins.length fullUsers > 0 then (builtins.head fullUsers).name else "bnuy"}"
-    current_profile_index = 1
-
-    for i, profile in ipairs(profiles) do
-        if profile.name == current_user then
-            current_profile_index = i
-            break
-        end
-    end
-
-    -- Profile switcher: cycle to next profile
-    function cycle_profile()
-        current_profile_index = current_profile_index + 1
-        if current_profile_index > #profiles then
-            current_profile_index = 1
-        end
-
-        local profile = profiles[current_profile_index]
-
-        -- Update keyboard layout
-        hl.config({
-            input = {
-                kb_layout = profile.layout,
-                kb_variant = profile.variant,
-            },
-        })
-
-        -- Reload keybinds for new profile
-        load_profile_keybinds(profile.name)
-
-        -- Notify user
-        hl.notification.create({
-            text = "Profile: " .. profile.name .. " (" .. profile.layout .. (profile.variant ~= "" and "+" .. profile.variant or "") .. ")",
-            duration = 2000,
-        })
-    end
-
-    -- Load keybinds for a specific profile
-    function load_profile_keybinds(profile_name)
-        local bind_file = HOME .. "/.config/hypr/keybinds/" .. profile_name .. ".lua"
-        if is_file_exists(bind_file) then
-            dofile(bind_file)
-        else
-            -- Fallback to first profile
-            dofile(HOME .. "/.config/hypr/keybinds/${if builtins.length fullUsers > 0 then (builtins.head fullUsers).name else "bnuy"}.lua")
-        end
-    end
-
-    -- Enable profile switcher only if multiple profiles exist
-    if #profiles > 1 then
-        hl.bind("SUPER + SHIFT + K", function() cycle_profile() end,
-            { description = "Profile: Switch to next profile" })
-    end
+  # custom/ seed files (written once at activation, then preserved for runtime edits)
+  customSeed = pkgs.runCommand "hypr-custom" { } ''
+    mkdir -p "$out/scripts"
+    cp ${./custom/env.lua} "$out/env.lua"
+    cp ${./custom/execs.lua} "$out/execs.lua"
+    cp ${./custom/general.lua} "$out/general.lua"
+    cp ${./custom/variables.lua} "$out/variables.lua"
+    cp ${./rules.lua} "$out/rules.lua"
+    cp ${./custom/end4-keybinds.lua} "$out/end4-keybinds.lua"
+    cp ${./custom/keybinds.lua} "$out/keybinds.lua"
+    cp ${./custom/scripts/__restore_video_wallpaper.sh} "$out/scripts/__restore_video_wallpaper.sh"
+    chmod +x "$out/scripts/__restore_video_wallpaper.sh"
   '';
 
+  # qs wrapper: replicate launch.sh env so end-4's `qs -c $qsConfig` works
+  qsWrapper = pkgs.writeShellScript "qs-wrapper" ''
+    for profile in "$HOME/.nix-profile" "/etc/profiles/per-user/$USER" "/run/current-system/sw"; do
+      resolved="$(readlink -f "$profile" 2>/dev/null || echo "$profile")"
+      schema_dir="$resolved/share/gsettings-schemas"
+      if [ -d "$schema_dir" ]; then
+        for schema in "$schema_dir"/*; do
+          if [ -d "$schema" ] && [[ ":$XDG_DATA_DIRS:" != *":$schema:"* ]]; then
+            XDG_DATA_DIRS="''${XDG_DATA_DIRS:+$XDG_DATA_DIRS:}$schema"
+          fi
+        done
+      fi
+    done
+    export XDG_DATA_DIRS
+    export QS_ICON_THEME=hicolor
+    export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
+    exec "/etc/profiles/per-user/$USER/bin/qs" "$@"
+  '';
 in
 {
   imports = [
@@ -83,21 +48,12 @@ in
     configType = "lua";
   };
 
+  # qs wrapper must shadow the quickshell package's qs in the session PATH
+  home.sessionPath = [ "${config.home.homeDirectory}/.local/bin" ];
+
   xdg.configFile = {
-    # Lua config files
+    # Nix-managed entry point (overwritten every build)
     "hypr/hyprland.lua".source = ./hyprland.lua;
-    "hypr/lib.lua".source = ./lib.lua;
-    "hypr/appearance.lua".source = ./appearance.lua;
-    "hypr/autostart.lua".source = ./autostart.lua;
-    "hypr/rules.lua".source = ./rules.lua;
-    "hypr/binds.lua".source = ./binds.lua;
-
-    # Nix-generated profiles.lua
-    "hypr/profiles.lua".text = profilesLua;
-
-    # Keybind profiles
-    "hypr/keybinds/bnuy.lua".source = ./keybinds/bnuy.lua;
-    "hypr/keybinds/raina.lua".source = ./keybinds/raina.lua;
 
     # Hypridle stays as hyprlang (hybrid approach)
     "hypr/hypridle.conf".source = ./hypridle.conf;
@@ -111,12 +67,63 @@ in
       recursive = true;
     };
 
-    # end-4 hyprland scripts used by quickshell ii
-    "hypr/hyprland/scripts" = {
-      source = "${inputs.dots-hyprland}/dots/.config/hypr/hyprland/scripts";
+    # end-4's hyprlock (read-only; not the primary lock screen)
+    "hypr/hyprlock.conf".source = "${inputs.dots-hyprland}/dots/.config/hypr/hyprlock.conf";
+    "hypr/hyprlock" = {
+      source = "${inputs.dots-hyprland}/dots/.config/hypr/hyprlock";
       recursive = true;
     };
   };
+
+  home.activation.deployHyprland = lib.mkIf dm.graphical (lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+    HYPR_DIR="$HOME/.config/hypr"
+    HYPR_LAND="$HYPR_DIR/hyprland"
+    mkdir -p "$HYPR_DIR"
+
+    # 1. end-4 hyprland/ dir: content-synced from the store, never deleted.
+    #    Rule: missing -> create; contents differ -> single write; identical -> untouched.
+    #    shellOverrides/main.lua is owned by the shell at runtime - skipped, never synced.
+    mkdir -p "$HYPR_LAND/shellOverrides"
+    while IFS= read -r f; do
+      rel="''${f#"${hyprlandSource}"}"
+      case "$rel" in
+        /shellOverrides/main.lua) continue ;;
+      esac
+      dst="$HYPR_LAND$rel"
+      if [ ! -e "$dst" ] || ! cmp -s "$f" "$dst"; then
+        mkdir -p "$(dirname "$dst")"
+        cp -f "$f" "$dst"
+        # store sources are read-only (cp preserves mode) - make the copy editable
+        chmod u+rw "$dst"
+      fi
+    done < <(find "${hyprlandSource}" -type f)
+
+    # 2. Seed custom/ once; afterwards these files are user-owned
+    CUSTOM_DIR="$HYPR_DIR/custom"
+    mkdir -p "$CUSTOM_DIR/scripts"
+    ${lib.concatStringsSep "\n" (map (name: ''
+      if [ ! -f "$CUSTOM_DIR/${name}" ]; then
+        cp -p "${customSeed}/${name}" "$CUSTOM_DIR/${name}"
+      fi
+    '') [ "env.lua" "execs.lua" "general.lua" "rules.lua" "variables.lua" "end4-keybinds.lua" "keybinds.lua" ])}
+    if [ ! -f "$CUSTOM_DIR/scripts/__restore_video_wallpaper.sh" ]; then
+      cp -p "${customSeed}/scripts/__restore_video_wallpaper.sh" "$CUSTOM_DIR/scripts/__restore_video_wallpaper.sh"
+    fi
+    # store copies arrive read-only (cp preserves mode) - custom/ is user-editable
+    chmod -R u+rwX "$CUSTOM_DIR"
+
+    # 3. Remove stale flat module files (pre-end-4 layout)
+    for f in appearance autostart binds rules lib profiles; do
+      if [ -L "$HYPR_DIR/$f.lua" ]; then
+        rm -f "$HYPR_DIR/$f.lua"
+      fi
+    done
+
+    # 4. qs wrapper on PATH (home.sessionPath) - replicates launch.sh env
+    mkdir -p "$HOME/.local/bin"
+    cp -f "${qsWrapper}" "$HOME/.local/bin/qs"
+    chmod +x "$HOME/.local/bin/qs"
+  '');
 
   # Lid + battery policy for the locked session (graphical only)
   systemd.user.services.lockdown = lib.mkIf dm.graphical {

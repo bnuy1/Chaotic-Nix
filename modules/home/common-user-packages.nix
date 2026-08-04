@@ -73,9 +73,11 @@ in
       libnotify
       libreoffice
       pywal16
+      easyeffects
+      spicetify-cli
       (pkgs.vesktop.overrideAttrs (old: {
         postFixup = old.postFixup + ''
-          wrapProgram $out/bin/vesktop --add-flags "--enable-features=WebRTCPipeWireCapturer"
+          wrapProgram $out/bin/vesktop --add-flags "--enable-features=WebRTCPipeWireCapturer --force-dark-mode"
         '';
       }))
       prismlauncher
@@ -104,7 +106,7 @@ in
     # tty1 autologin via uwsm; guarded against SSH/tty2-6/already-graphical shells
     loginShellInit = lib.mkIf dm.graphical ''
       if not set -q WAYLAND_DISPLAY; and not set -q DISPLAY; and not set -q SSH_CONNECTION; and string match -q '/dev/tty1' (tty)
-          exec uwsm start Hyprland
+          exec uwsm -g -1 start start-hyprland
       end
     '';
 

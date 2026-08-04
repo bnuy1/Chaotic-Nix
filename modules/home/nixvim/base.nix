@@ -325,6 +325,149 @@
           })
         end
       end
+
+      -- Material You theme: when running under Hyprland, rebuild highlight
+      -- groups from the same MD3 palette the rest of the stack uses
+      -- (~/.local/state/quickshell/user/generated/colors.json). Falls back to
+      -- the configured colorscheme (catppuccin) everywhere else.
+      do
+        local function material_theme()
+          local hypr = vim.env.HYPRLAND_INSTANCE_SIGNATURE
+          if hypr == nil or hypr == "" then
+            return false
+          end
+          local f = io.open(os.getenv("HOME") .. "/.local/state/quickshell/user/generated/colors.json", "r")
+          if not f then
+            return false
+          end
+          local raw = f:read("*a")
+          f:close()
+          local ok, c = pcall(vim.json.decode, raw)
+          if not ok or type(c) ~= "table" or not c.background then
+            return false
+          end
+          local bg = c.background
+          local fg = c.onSurface or c.background
+          local muted = c.onSurfaceVariant or fg
+          local dim = c.outline or muted
+          local container = c.surfaceContainer or bg
+          local container_low = c.surfaceContainerLow or container
+          local container_high = c.surfaceContainerHigh or container
+          local container_highest = c.surfaceContainerHighest or container
+          local primary = c.primary or fg
+          local on_primary = c.onPrimary or bg
+          local primary_container = c.primaryContainer or container
+          local on_primary_container = c.onPrimaryContainer or fg
+          local secondary = c.secondary or fg
+          local secondary_container = c.secondaryContainer or container
+          local on_secondary_container = c.onSecondaryContainer or fg
+          local tertiary = c.tertiary or fg
+          local error = c.error or c.term1 or fg
+          local function hl(g, o) vim.api.nvim_set_hl(0, g, o) end
+          local function set(groups, o) for _, g in ipairs(groups) do hl(g, o) end end
+          hl("Normal", { fg = fg, bg = bg })
+          hl("NormalFloat", { fg = fg, bg = container_low })
+          set({ "FloatBorder", "FloatTitle", "FloatFooter" }, { fg = dim, bg = container_low })
+          hl("EndOfBuffer", { fg = bg })
+          hl("NonText", { fg = dim })
+          hl("Whitespace", { fg = container_highest })
+          hl("SpecialKey", { fg = tertiary })
+          hl("Conceal", { fg = dim })
+          set({ "LineNr", "LineNrAbove", "LineNrBelow" }, { fg = dim })
+          hl("CursorLineNr", { fg = primary, bold = true })
+          hl("CursorLine", { bg = container_low })
+          hl("CursorColumn", { bg = container_low })
+          hl("ColorColumn", { bg = container })
+          set({ "Cursor", "iCursor", "lCursor" }, { bg = fg, fg = bg })
+          set({ "SignColumn", "FoldColumn" }, { bg = bg, fg = dim })
+          hl("Folded", { fg = muted, bg = container })
+          hl("MatchParen", { fg = primary, bg = primary_container, bold = true })
+          hl("Search", { fg = on_primary, bg = primary })
+          hl("IncSearch", { fg = on_secondary_container, bg = secondary_container })
+          hl("CurSearch", { fg = bg, bg = primary })
+          hl("Substitute", { fg = on_primary, bg = primary })
+          hl("QuickFixLine", { bg = container_high, fg = fg })
+          hl("MsgArea", { fg = fg })
+          hl("ModeMsg", { fg = primary, bold = true })
+          hl("MoreMsg", { fg = primary })
+          hl("Question", { fg = primary })
+          hl("ErrorMsg", { fg = error, bold = true })
+          hl("WarningMsg", { fg = secondary })
+          hl("Error", { fg = error })
+          hl("Todo", { fg = on_primary_container, bg = primary_container })
+          hl("StatusLine", { fg = fg, bg = container_high })
+          hl("StatusLineNC", { fg = dim, bg = container_low })
+          set({ "StatusLineTerm", "StatusLineTermNC" }, { fg = fg, bg = container_high })
+          set({ "TabLine" }, { fg = muted, bg = container })
+          hl("TabLineSel", { fg = on_primary, bg = primary })
+          hl("TabLineFill", { bg = container })
+          hl("WinSeparator", { fg = dim, bg = bg })
+          hl("VertSplit", { fg = container_highest, bg = bg })
+          set({ "WinBar" }, { fg = fg, bg = container_low })
+          set({ "WinBarNC" }, { fg = dim, bg = container_low })
+          hl("Pmenu", { fg = fg, bg = container })
+          hl("PmenuSel", { fg = on_primary_container, bg = primary_container })
+          hl("PmenuKind", { fg = primary, bg = container })
+          hl("PmenuKindSel", { fg = on_primary_container, bg = primary_container })
+          hl("PmenuExtra", { fg = muted, bg = container })
+          hl("PmenuExtraSel", { fg = on_primary_container, bg = primary_container })
+          hl("PmenuMatch", { fg = primary, bg = container })
+          hl("PmenuMatchSel", { fg = on_primary_container, bg = primary_container })
+          hl("PmenuSbar", { bg = container_high })
+          hl("PmenuThumb", { bg = primary_container })
+          hl("PmenuBorder", { fg = dim })
+          hl("Comment", { fg = muted, italic = true })
+          hl("SpecialComment", { fg = muted, italic = true })
+          hl("Constant", { fg = tertiary })
+          hl("String", { fg = c.term10 or secondary })
+          hl("Character", { fg = c.term12 or tertiary })
+          hl("Number", { fg = c.term13 or tertiary })
+          hl("Boolean", { fg = c.term13 or tertiary })
+          hl("Float", { fg = c.term13 or tertiary })
+          hl("Identifier", { fg = fg })
+          hl("Function", { fg = c.term12 or tertiary })
+          set({ "Statement", "Conditional", "Repeat", "Exception" }, { fg = secondary })
+          hl("Keyword", { fg = primary })
+          hl("Label", { fg = secondary })
+          hl("Operator", { fg = fg })
+          set({ "PreProc", "Include", "Define", "Macro", "PreCondit" }, { fg = c.term6 or secondary })
+          set({ "Type", "StorageClass", "Structure", "Typedef" }, { fg = c.term12 or tertiary })
+          hl("Special", { fg = c.term14 or secondary })
+          hl("SpecialChar", { fg = c.term14 or secondary })
+          hl("Tag", { fg = c.term5 or tertiary })
+          hl("Delimiter", { fg = muted })
+          hl("Debug", { fg = error })
+          hl("Underlined", { underline = true, fg = primary })
+          hl("DiagnosticError", { fg = error })
+          hl("DiagnosticWarn", { fg = c.term11 or secondary })
+          hl("DiagnosticInfo", { fg = primary })
+          hl("DiagnosticHint", { fg = muted })
+          hl("DiagnosticOk", { fg = c.term10 or primary })
+          set({ "DiagnosticVirtualTextError", "DiagnosticSignError", "DiagnosticFloatingError" }, { fg = error })
+          set({ "DiagnosticVirtualTextWarn", "DiagnosticSignWarn", "DiagnosticFloatingWarn" }, { fg = c.term11 or secondary })
+          set({ "DiagnosticVirtualTextInfo", "DiagnosticSignInfo", "DiagnosticFloatingInfo" }, { fg = primary })
+          set({ "DiagnosticVirtualTextHint", "DiagnosticSignHint", "DiagnosticFloatingHint" }, { fg = muted })
+          set({ "DiagnosticVirtualTextOk", "DiagnosticSignOk", "DiagnosticFloatingOk" }, { fg = c.term10 or primary })
+          hl("DiagnosticUnderlineError", { undercurl = true, sp = error })
+          hl("DiagnosticUnderlineWarn", { undercurl = true, sp = c.term11 or secondary })
+          hl("DiagnosticUnderlineInfo", { undercurl = true, sp = primary })
+          hl("DiagnosticUnderlineHint", { undercurl = true, sp = muted })
+          hl("DiagnosticUnderlineOk", { undercurl = true, sp = c.term10 or primary })
+          set({ "LspReferenceText", "LspReferenceRead", "LspReferenceWrite" }, { bg = container_highest })
+          hl("LspSignatureActiveParameter", { fg = on_secondary_container, bg = secondary_container, bold = true })
+          hl("DiffAdd", { fg = c.term2 or primary, bg = container_low })
+          hl("DiffChange", { fg = c.term11 or secondary, bg = container_low })
+          hl("DiffDelete", { fg = error, bg = container_low })
+          hl("DiffText", { fg = c.term3 or tertiary, bg = container_high })
+          return true
+        end
+        material_theme()
+        vim.api.nvim_create_autocmd("ColorScheme", {
+          callback = function()
+            material_theme()
+          end,
+        })
+      end
     '';
   };
 }

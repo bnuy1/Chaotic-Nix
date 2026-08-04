@@ -6,7 +6,7 @@
     ./zfs.nix
   ];
 
-  services.pterodactyl.listenIP = "192.168.1.166";
+  services.pterodactyl.listenIP = "192.168.2.3";
 
   networking.hostId = "8425e349";
 

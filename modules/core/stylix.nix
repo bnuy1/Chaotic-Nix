@@ -23,6 +23,8 @@ in
     # terminal color palette to stylix colors on every new shell, overriding
     # quickshell's generated kitty theme. Disable it so quickshell colors win.
     targets.fish.enable = false;
+    # regreet is not used here and its module emits a deprecation warning
+    targets.regreet.enable = false;
     cursor = {
       package = pkgs.bibata-cursors;
       name = "Bibata-Modern-Ice";

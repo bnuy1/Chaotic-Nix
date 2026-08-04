@@ -16,10 +16,13 @@ for profile in "$HOME/.nix-profile" "/etc/profiles/per-user/$USER" "/run/current
 done
 export XDG_DATA_DIRS
 
+# use the hicolor icon theme so icons load with paths
+export QS_ICON_THEME=hicolor
+
 # Python virtual environment for color generation (materialyoucolor, pillow, etc.)
 export ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
-# libstdc++ for pip-installed native Python extensions
-STDCXX_LIB="$(dirname "$(find /nix/store -maxdepth 4 -name 'libstdc++.so.6' 2>/dev/null | head -1)" 2>/dev/null)"
-[ -n "$STDCXX_LIB" ] && export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$STDCXX_LIB"
+# do not export LD_LIBRARY_PATH here
+# a global one breaks hyprctl
+# the venv python entrypoints set their own LD_LIBRARY_PATH
 
 exec qs -c ii "$@"

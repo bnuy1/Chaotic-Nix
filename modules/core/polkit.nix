@@ -13,6 +13,27 @@ in {
   };
 
   config = {
+    # hyprpolkitagent 0.1.3 always authenticates the first polkit identity
+    # (identities.at(0)) instead of the session's user. With several wheel
+    # members (admin, bnuy, raina) that makes it prompt for the wrong user's
+    # password. Make the admin identity the subject's own user when they are
+    # in wheel so the agent asks the correct user. Sorts before the generated
+    # 10-nixos.rules, so this rule wins (polkit uses the first non-empty
+    # admin rule).
+    environment.etc."polkit-1/rules.d/00-session-admin.rules".text = ''
+      polkit.addAdminRule(function(action, subject) {
+        if (subject.isInGroup("wheel") && subject.user)
+          return ["unix-user:" + subject.user];
+        return ["unix-group:wheel"];
+      });
+    '';
+
+    # gnome-multi-writer (and some other apps) hardcode /usr/bin/pkexec
+    # instead of using PATH. Point it at NixOS's setuid wrapper.
+    systemd.tmpfiles.rules = [
+      "L+ /usr/bin/pkexec - - - - /run/wrappers/bin/pkexec"
+    ];
+
     # Wheel may suspend/poweroff/reboot silently (session may be locked, no polkit prompt)
     security.polkit.extraConfig = lib.mkIf graphical ''
       polkit.addRule(function(action, subject) {

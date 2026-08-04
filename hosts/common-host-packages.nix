@@ -33,7 +33,6 @@ in {
     hyprsunset
     orca-slicer
     prusa-slicer
-    spotify
     dunst
     jellyfin
     jellyfin-desktop

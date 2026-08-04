@@ -3,6 +3,9 @@
 let
   cfg = config.services.netboot;
   bootFile = "bootx64.efi";
+  # Network address of listenIp's /24 (used for PXE-proxy DHCP range)
+  listenIpSubnet =
+    (lib.concatStringsSep "." (lib.take 3 (lib.splitString "." cfg.listenIp))) + ".0";
 
   sshKeys = lib.concatMap (u: u.sshKeys or []) (vars.users or []);
   hostKeys = if builtins.pathExists ./host-keys.nix then import ./host-keys.nix else [];
@@ -204,7 +207,7 @@ in
     interface = lib.mkOption {
       type = lib.types.str;
       default = "wlan0";
-      description = "Network interface for DHCP and TFTP";
+      description = "Network interface for DHCP and TFTP. Should be a dedicated LAN-only interface.";
     };
 
     listenIp = lib.mkOption {
@@ -226,8 +229,13 @@ in
 
     dhcpRange = lib.mkOption {
       type = lib.types.str;
-      default = "192.168.1.100,192.168.1.150,12h";
-      description = "DHCP lease range for PXE clients";
+      default = "${listenIpSubnet},proxy";
+      description = ''
+        dnsmasq DHCP range. Defaults to PXE-proxy mode: dnsmasq answers only
+        PXE/boot requests and NEVER allocates leases, so the network's real
+        DHCP server stays authoritative and this server cannot break the network.
+        Override only if you intentionally want to hand out leases.
+      '';
     };
 
     tftpRoot = lib.mkOption {
@@ -259,6 +267,9 @@ in
   config = lib.mkIf cfg.enable {
     environment.systemPackages = [ ipxeBoot genMenuSh pkgs.xorriso pkgs.p7zip pkgs.libarchive ];
 
+    # PXE-proxy DHCP: answers boot requests on cfg.interface only, allocates no
+    # leases (dhcpRange defaults to "<subnet>,proxy"). Cannot interfere with the
+    # network's real DHCP server.
     services.dnsmasq = {
       enable = true;
       settings = {

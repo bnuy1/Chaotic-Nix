@@ -98,6 +98,25 @@ let
     inverse_surface = "#${palette.base05}";
     inverse_on_surface = "#${palette.base01}";
     inverse_primary = "#${palette.base03}";
+
+    # terminal ANSI colors read by applycolor.sh
+    # without them kitty-theme.conf keeps the "#$term0 #" placeholders
+    term0 = "#${palette.base00}";
+    term1 = "#${palette.base08}";
+    term2 = "#${palette.base0B}";
+    term3 = "#${palette.base0A}";
+    term4 = "#${palette.base0D}";
+    term5 = "#${palette.base0E}";
+    term6 = "#${palette.base0C}";
+    term7 = "#${palette.base05}";
+    term8 = "#${palette.base03}";
+    term9 = "#${palette.base08}";
+    term10 = "#${palette.base0B}";
+    term11 = "#${palette.base0A}";
+    term12 = "#${palette.base0D}";
+    term13 = "#${palette.base0E}";
+    term14 = "#${palette.base0C}";
+    term15 = "#${palette.base07}";
   };
 in
 {
@@ -355,6 +374,12 @@ old_time_fmt = 'property string format: "hh:mm"'
 new_time_fmt = 'property string format: "${timeFormatDefault}"'
 content = content.replace(old_time_fmt, new_time_fmt)
 
+# keep the background layer visible on fullscreen
+# hyprpaper is disabled here so hiding it would leave pure black
+old_fullscreen = 'property bool hideWhenFullscreen: true'
+new_fullscreen = 'property bool hideWhenFullscreen: false'
+content = content.replace(old_fullscreen, new_fullscreen)
+
 # Use Iosevka as the font family everywhere in the defaults
 for old_font, new_font in {
   'property string main: "Google Sans Flex"': 'property string main: "${fontFamily}"',
@@ -475,7 +500,6 @@ PYEOF
         cp "$SOURCE/scripts/colors/switchwall.sh" "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null || true
       fi
       # Always install/update the wrapper
-      STDCXX_LIB="${pkgs.stdenv.cc.cc.lib}/lib"
       cat > "$II_DIR/scripts/colors/switchwall.sh" << 'WRAPPER'
 #!/usr/bin/env bash
 # stylix wrapper for switchwall.sh v3
@@ -492,6 +516,12 @@ STATE_DIR="$XDG_STATE_HOME/quickshell"
 GEN_DIR="$STATE_DIR/user/generated"
 SHELL_CONFIG="$XDG_CONFIG_HOME/illogical-impulse/config.json"
 ORIGINAL="$SCRIPT_DIR/switchwall.sh.bak"
+
+# serialize concurrent runs so parallel writes stay whole
+LOCK_FILE="$GEN_DIR/.switchwall.lock"
+mkdir -p "$GEN_DIR" 2>/dev/null || true
+exec 9>"$LOCK_FILE"
+flock -x 9
 if [ -z "''${ILLOGICAL_IMPULSE_VIRTUAL_ENV:-}" ]; then
   ILLOGICAL_IMPULSE_VIRTUAL_ENV="$HOME/.local/state/quickshell/.venv"
   export ILLOGICAL_IMPULSE_VIRTUAL_ENV
@@ -505,8 +535,9 @@ log_cache() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
-STDCXX_LIB="__STDCXX_LIB__"
-export LD_LIBRARY_PATH="''${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}$STDCXX_LIB"
+# do not export LD_LIBRARY_PATH here
+# a global one breaks every hyprctl call
+# the venv python entrypoints set their own LD_LIBRARY_PATH
 
 detect_stylix() {
   while [[ $# -gt 1 ]]; do
@@ -598,8 +629,10 @@ if detect_stylix "''${FWD_ARGS[@]}"; then
   if [ -f "$ORIGINAL" ]; then
     bash "$ORIGINAL" "''${FWD_ARGS[@]}" 2>/dev/null || true
   fi
-  cp "$GEN_DIR/stylix-colors.json" "$GEN_DIR/colors.json" 2>/dev/null || true
+  cp "$GEN_DIR/stylix-colors.json" "$GEN_DIR/colors.json.tmp.$$" 2>/dev/null \
+    && mv -f "$GEN_DIR/colors.json.tmp.$$" "$GEN_DIR/colors.json" 2>/dev/null || true
   bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
+  bash "$SCRIPT_DIR/applycolor.sh" >/dev/null 2>&1 || true
   write_cache "''${FWD_ARGS[@]}"
   eval "$RELOAD_HOOK"
   exit 0
@@ -611,6 +644,7 @@ if $HAS_NOSWITCH && ! $NO_CACHE && check_cache "''${FWD_ARGS[@]}" && [ -s "$GEN_
   # Cache hit - just trigger reload with existing colors
   log_cache "CACHE HIT | key=$(cat "$GEN_DIR/.wallpaper-cache" 2>/dev/null) | args=''${FWD_ARGS[*]}"
   bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
+  bash "$SCRIPT_DIR/applycolor.sh" >/dev/null 2>&1 || true
   eval "$RELOAD_HOOK"
   exit 0
 fi
@@ -637,10 +671,16 @@ for m in re.finditer(r'^\$(\w+):\s*(#[A-Fa-f0-9]+);', scss, re.MULTILINE):
     name, val = m.groups()
     if name not in ('darkmode', 'transparent'):
         colors[name] = val
-with open(os.environ['JSON_FILE'], 'w') as f:
+import tempfile
+p = os.environ['JSON_FILE']
+fd, tmp = tempfile.mkstemp(dir=os.path.dirname(p), suffix='.tmp')
+with os.fdopen(fd, 'w') as f:
     json.dump(colors, f)
+os.replace(tmp, p)
 PYEOF
   fi
+  # rerun applycolor after the conversion so kitty themes come from the new colors
+  bash "$SCRIPT_DIR/applycolor.sh" >/dev/null 2>&1 || true
   bash "$SCRIPT_DIR/apply-app-themes.sh" >/dev/null 2>&1 || true
   write_cache "''${FWD_ARGS[@]}"
   eval "$RELOAD_HOOK"
@@ -649,25 +689,35 @@ else
   exit 1
 fi
 WRAPPER
-      sed -i "s|__STDCXX_LIB__|$STDCXX_LIB|g" "$II_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
       chmod +x "$II_DIR/scripts/colors/switchwall.sh" 2>/dev/null || true
 
-      # Fix the IFS leak in applycolor.sh: IFS=$'\n' is set when building the
-      # color arrays and never restored, so `$(pidof kitty)` never word-splits
-      # and the SIGUSR1 kitty reload always fails ("not a pid or valid job
-      # spec") - the running terminal never picks up regenerated colors after
-      # a wallpaper change. Keyed on content so it survives end-4 input updates.
-      export APPLYCOLOR_SH="$II_DIR/scripts/colors/applycolor.sh"
-      if [ -f "$APPLYCOLOR_SH" ] && \
-         ! grep -q 'unset IFS # Restore default splitting' "$APPLYCOLOR_SH" 2>/dev/null; then
+      # deploy our applycolor.sh
+      # the end-4 version only runs on full regeneration and breaks the kitty reload
+      # ours reads colors json directly so it works on cached syncs too
+      mkdir -p "$II_DIR/scripts/colors" 2>/dev/null || true
+      rm -f "$II_DIR/scripts/colors/applycolor.sh" 2>/dev/null || true
+      cp ${./scripts/applycolor.sh} "$II_DIR/scripts/colors/applycolor.sh" 2>/dev/null || true
+      chmod +x "$II_DIR/scripts/colors/applycolor.sh" 2>/dev/null || true
+      chown "$(stat -c '%u:%g' "$HOME")" "$II_DIR/scripts/colors/applycolor.sh" 2>/dev/null || true
+
+      # show the special pill only when a special workspace is open
+      # hyprland always reports a specialWorkspace object so gate on its id
+      # instead of its name which is unreliable
+      WORKSPACE_MODEL_QML="$II_DIR/modules/common/models/WorkspaceModel.qml"
+      if [ -f "$WORKSPACE_MODEL_QML" ] && \
+         grep -q 'specialWorkspaceActive: specialWorkspaceName !== ""' "$WORKSPACE_MODEL_QML" 2>/dev/null; then
+        export WORKSPACE_MODEL_QML
         python3 << 'PYEOF'
 import os
-p = os.environ['APPLYCOLOR_SH']
+p = os.environ['WORKSPACE_MODEL_QML']
 src = open(p).read()
-needle = "colorvalues=($colorstrings) # Array of color values"
-fix = needle + "\nunset IFS # Restore default splitting so `$(pidof kitty)` in apply_kitty splits on spaces"
-if needle in src and "unset IFS" not in src:
-    open(p, 'w').write(src.replace(needle, fix, 1))
+src = src.replace(
+    'specialWorkspace?.name.replace("special:", "") ?? "special"',
+    'specialWorkspace?.name?.replace("special:", "") ?? ""')
+src = src.replace(
+    'specialWorkspaceActive: specialWorkspaceName !== ""',
+    'specialWorkspaceActive: specialWorkspace?.id !== 0 && specialWorkspaceName !== ""')
+open(p, 'w').write(src)
 PYEOF
       fi
 
@@ -745,27 +795,63 @@ SCHEME_JSON
         sed -i 's|^    handle_kde_material_you_colors &$|    # handle_kde_material_you_colors disabled: matugen KDE wrapper is not installed|' "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null || true
       fi
 
-      # Replace the random wallpaper scripts with hardened copies that validate
-      # every step (osu.ppy.sh API v2 now 403s without OAuth2; the shipped
-      # scripts fed empty/corrupt files to switchwall and crashed the shell).
+      # the .bak reloads kitty before the wrapper rewrites colors json so
+      # the premature applycolor call is dropped here and rerun after the write
+      if [ -f "$II_DIR/scripts/colors/switchwall.sh.bak" ] && \
+         grep -qF '    "$SCRIPT_DIR"/applycolor.sh' "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null; then
+        sed -i 's|^    "\$SCRIPT_DIR"/applycolor.sh$|    # applycolor disabled here the wrapper reruns it after writing colors json|' "$II_DIR/scripts/colors/switchwall.sh.bak" 2>/dev/null || true
+      fi
+
+      # use hardened random wallpaper scripts
+      # the shipped scripts fed empty files to switchwall and crashed the shell
       mkdir -p "$II_DIR/scripts/colors/random" 2>/dev/null || true
       cp ${./scripts/random_konachan_wall.sh} "$II_DIR/scripts/colors/random/random_konachan_wall.sh" 2>/dev/null || true
       chmod +x "$II_DIR/scripts/colors/random/"*.sh 2>/dev/null || true
 
-      # Create Python virtual environment for color generation
+      # venv needs a compiler to build the materialyoucolor extension
+      # so g++ is put on PATH here before pip install
       VENV_DIR="$HOME/.local/state/quickshell/.venv"
+      # a system python upgrade breaks an existing venv
+      # so the venv is bootstrapped and repaired on every activation
       if [ ! -f "$VENV_DIR/bin/activate" ]; then
-        python3 -m venv --prompt .venv "$VENV_DIR" 2>/dev/null || true
+        ${pkgs.python3}/bin/python3 -m venv --prompt .venv "$VENV_DIR" 2>/dev/null || true
       fi
-      # Install/update Python packages (best-effort, needs network)
-      if [ -f "$VENV_DIR/bin/activate" ]; then
-        source "$VENV_DIR/bin/activate" 2>/dev/null || true
-        "$VENV_DIR/bin/pip" install -q "materialyoucolor==2.0.10" pillow numpy 2>/dev/null || \
-        "$VENV_DIR/bin/pip" install -q --break-system-packages "materialyoucolor==2.0.10" pillow numpy 2>/dev/null || true
-        # opencv is needed for --type auto (scheme detection from image)
-        "$VENV_DIR/bin/pip" install -q opencv-python-headless 2>/dev/null || \
-        "$VENV_DIR/bin/pip" install -q --break-system-packages opencv-python-headless 2>/dev/null || true
-        deactivate 2>/dev/null || true
+      # venv pip packages need libstdc++ and libz at runtime
+      # do not export LD_LIBRARY_PATH globally or hyprctl breaks
+      # the venv python wrappers set it only for their own process
+      # the activation PATH has no python3 so resolve it via the store path
+      PY_LD="${pkgs.stdenv.cc.cc.lib}/lib"
+      REAL_PY="$(readlink -f "${pkgs.python3}/bin/python3" 2>/dev/null || true)"
+      if [ -n "$REAL_PY" ] && [ -x "$REAL_PY" ]; then
+        # wrapper scripts exec this symlink not the realpath
+        # the symlink is what makes CPython detect the venv
+        ln -sfn "$REAL_PY" "$VENV_DIR/bin/python.real" 2>/dev/null || true
+        for p in "$VENV_DIR"/bin/python*; do
+          name="$(basename "$p")"
+          [ "$name" = "python.real" ] && continue
+          [ "$name" = "python-config" ] && continue
+          [ -e "$p" ] || continue
+          rm -f "$p"
+          cat > "$p" << 'PYWRAPEOF'
+#!/usr/bin/env bash
+# quickshell-venv-python
+export LD_LIBRARY_PATH="''${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}__PY_LD__"
+exec "__VENV_DIR__/bin/python.real" "$@"
+PYWRAPEOF
+          sed -i "s|__PY_LD__|$PY_LD|g; s|__VENV_DIR__|$VENV_DIR|g" "$p" 2>/dev/null || true
+          chmod +x "$p"
+        done
+      fi
+      # re-bootstrap the venv when its pip is broken or missing
+      if ! "$VENV_DIR/bin/pip" --version >/dev/null 2>&1; then
+        "$VENV_DIR/bin/python" -m ensurepip 2>/dev/null || true
+        "$VENV_DIR/bin/python" -m pip install -q --upgrade pip 2>/dev/null || true
+      fi
+      if ! "$VENV_DIR/bin/python" -c 'import materialyoucolor, PIL, numpy, cv2' >/dev/null 2>&1; then
+        PATH="${pkgs.stdenv.cc}/bin:''${PATH}" "$VENV_DIR/bin/pip" install -q \
+          "materialyoucolor==2.0.10" pillow numpy opencv-python-headless 2>/dev/null || \
+        PATH="${pkgs.stdenv.cc}/bin:''${PATH}" "$VENV_DIR/bin/pip" install -q \
+          --break-system-packages "materialyoucolor==2.0.10" pillow numpy opencv-python-headless 2>/dev/null || true
       fi
 
       # Migrate terminal generation props to the vivid near-passthrough
@@ -789,6 +875,13 @@ SCHEME_JSON
           else . end
           | .appearance.wallpaperTheming.enableQtApps = false
         ' "$SHELL_CONFIG_JSON" > "$SHELL_CONFIG_JSON.tmp" 2>/dev/null && mv "$SHELL_CONFIG_JSON.tmp" "$SHELL_CONFIG_JSON" 2>/dev/null || true
+      fi
+
+      # keep the background layer alive on fullscreen
+      # hyprpaper is disabled here so hiding it would leave pure black
+      if [ -f "$SHELL_CONFIG_JSON" ] && [ "$(jq -r '.background.hideWhenFullscreen // false' "$SHELL_CONFIG_JSON" 2>/dev/null)" = "true" ]; then
+        jq '.background.hideWhenFullscreen = false' "$SHELL_CONFIG_JSON" > "$SHELL_CONFIG_JSON.tmp" 2>/dev/null \
+          && mv "$SHELL_CONFIG_JSON.tmp" "$SHELL_CONFIG_JSON" 2>/dev/null || true
       fi
     '';
   };

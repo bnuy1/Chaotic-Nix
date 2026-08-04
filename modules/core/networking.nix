@@ -22,10 +22,11 @@ in
       enable = true;
       wifi.backend = "iwd";
       unmanaged = [ "interface-name:wg*" ];
-      settings.main = {
-        # Don't let router RA/DHCP inject DNS — use our DoT servers only
-        "ignore-auto-dns" = true;
-      };
+      # Don't let router RA/DHCP inject DNS — use our DoT servers only.
+      # NM then leaves DNS to systemd-resolved (9.9.9.9/1.1.1.1 over TLS).
+      # mkForce: nixpkgs resolved.nix unconditionally sets
+      # dns = "systemd-resolved", which pushes per-link router DNS into resolved.
+      dns = lib.mkForce "none";
     };
 
     enableIPv6 = true;
@@ -35,10 +36,9 @@ in
     ];
     #nameservers = [ "192.168.1.99" ];
 
-    wireless.iwd = {
-      enable = true;
-      settings.General.EnableNetworkConfiguration = true;
-    };
+    # iwd is auto-enabled with sane defaults (DriverQuirks.DefaultInterface="?*")
+    # when wifi.backend = "iwd". Do NOT re-add EnableNetworkConfiguration here:
+    # iwd doing its own DHCP races NetworkManager (see plan.md).
 
     useDHCP = false;
 

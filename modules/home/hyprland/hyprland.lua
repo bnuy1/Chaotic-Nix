@@ -1,21 +1,52 @@
--- Hyprland Lua Configuration
--- Main entry point: loads all modules
--- Based on end4's structure but simplified (no custom/ override layer)
+-- Main entry point for Hyprland Lua config
+-- Nix-managed: overwritten on every build. Put your own changes in custom/
+-- Based on end-4's dots-hyprland hyprland.lua
 
--- Helper functions
-require("lib")
+-- Internal stuff --
+require("hyprland.lib")
+require("hyprland.services")
 
--- Profile system (Nix-generated)
-require("profiles")
+-- Environment variables --
+require("hyprland.env")
+if is_file_exists(HOME .. "/.config/hypr/custom/env.lua") then
+    require("custom.env")
+end
 
--- Appearance (monitors, variables, decoration, animations)
-require("appearance")
+-- Default configurations --
+require("hyprland.execs")
+require("hyprland.general")
+require("hyprland.rules")
+require("hyprland.colors")
 
--- Autostart (exec-once commands)
-require("autostart")
+-- Custom configurations (seeded by Nix once, then preserved) --
+if is_file_exists(HOME .. "/.config/hypr/custom/execs.lua") then
+    require("custom.execs")
+end
+if is_file_exists(HOME .. "/.config/hypr/custom/general.lua") then
+    require("custom.general")
+end
+if is_file_exists(HOME .. "/.config/hypr/custom/rules.lua") then
+    require("custom.rules")
+end
+if is_file_exists(HOME .. "/.config/hypr/custom/end4-keybinds.lua") then
+    require("custom.end4-keybinds")
+end
+if is_file_exists(HOME .. "/.config/hypr/custom/keybinds.lua") then
+    require("custom.keybinds")
+end
 
--- Window/layer/workspace rules
-require("rules")
+-- MD3 border colors, written by applycolor.sh (runtime palette) --
+if is_file_exists(HOME .. "/.config/hypr/custom/colors.lua") then
+    require("custom.colors")
+end
 
--- Keybinds (profile-aware)
-require("binds")
+-- nwg-displays support --
+if is_file_exists(HOME .. "/.config/hypr/workspaces.lua") then
+    require("workspaces")
+end
+if is_file_exists(HOME .. "/.config/hypr/monitors.lua") then
+    require("monitors")
+end
+
+-- Shell overrides --
+require("hyprland.shellOverrides.main")
