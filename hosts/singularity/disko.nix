@@ -130,6 +130,8 @@
           mountpoint = "none";
           compression = "zstd";
           atime = "off";
+          acltype = "posixacl";
+          xattr = "sa";
           encryption = "aes-256-gcm";
           keyformat = "passphrase";
           keylocation = "prompt";
@@ -164,6 +166,8 @@
           mountpoint = "none";
           compression = "zstd";
           atime = "off";
+          acltype = "posixacl";
+          xattr = "sa";
           encryption = "aes-256-gcm";
           keyformat = "passphrase";
           keylocation = "prompt";
