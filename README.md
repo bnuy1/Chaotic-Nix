@@ -72,6 +72,25 @@ Every variable has a default, so you generally need to override what differs fro
 
 </details>
 
+<details>
+  <summary>Disk partitioning (disko)</summary>
+    Some hosts manage their disk layout with disko. When a host imports
+    `inputs.disko.nixosModules.disko` (see `hosts/singularity/default.nix`), the
+    `fileSystems`/`swapDevices` in its `hardware-configuration.nix` are replaced
+    by the ones generated from `disko.devices` in that host's `disko.nix`.
+
+    Repartition + format + mount a disko-managed host (DESTRUCTIVE, wipes the disks):
+
+    ```bash
+    sudo nix run /etc/nixos#nixosConfigurations.singularity.config.system.build.destroyFormatMount
+    # or equivalently:
+    sudo nix run /etc/nixos#disko -- --mode destroy,format,mount --flake /etc/nixos#singularity
+    ```
+
+    Then run `nixos-install` as usual. Only run this on a host you intend to
+    reinstall (e.g. from a live/installer image or netboot) — never on a running system.
+</details>
+
 ---
 
 ## Structure

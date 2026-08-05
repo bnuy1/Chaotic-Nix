@@ -1,12 +1,13 @@
-{ config, lib, vars, ... }:
+{ config, lib, vars, inputs, ... }:
 {
   imports = [
+    # disko module: provides the `disko` option + generates fileSystems/swapDevices
+    inputs.disko.nixosModules.disko
+    ./disko.nix
     ./hardware-configuration.nix
     ./host-packages.nix
     ./zfs.nix
   ];
-
-  services.pterodactyl.listenIP = "192.168.2.3";
 
   networking.hostId = "8425e349";
 
@@ -17,7 +18,25 @@
   networking.networkmanager.ensureProfiles.profiles =
     vars.networking.staticProfiles or {};
 
-  # Remote unlock via initrd SSH
+  # Per-host server service config.
+  # These options are always declared (modules/server) and only take effect when
+  # the matching vars.serverModules entry is non-null. Values survive while the
+  # service is disabled so it can be re-enabled without re-typing them.
+
+  # Pterodactyl panel (reserved 192.168.2.3). Disabled via serverModules.pterodactyl.
+  services.pterodactyl.listenIP = "192.168.2.3";
+
+  # Technitium DNS (serves home LAN via rack router 192.168.2.2).
+  # Disabled via serverModules.technitium.
+  services.technitium.listenAddress = "192.168.2.3";
+
+  # Netboot (LAN-only, never leaves the rack). Disabled via serverModules.netboot.
+  services.netboot = {
+    listenIp = "192.168.2.4";
+    interface = "enp0s31f6";
+  };
+
+  # Remote unlock via initrd SSH. Enabled via serverModules.remoteUnlock.
   services.remoteUnlock = {
     enable = true;
     hostKeys = [ /etc/secrets/initrd/ssh_host_ed25519_key ];

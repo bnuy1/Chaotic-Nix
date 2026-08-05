@@ -7,16 +7,13 @@
   inputs,
   ...
 }:
-let
-  hasServerModules = lib.filterAttrs (_: v: v != null) (vars.serverModules or { }) != { };
-in
 {
   imports = [
     ./modules/core
     ./hosts/${host}
     inputs.silentSDDM.nixosModules.default
   ]
-  ++ lib.optionals hasServerModules [
+  ++ lib.optionals (vars.serverModules or null != null) [
     ./modules/server
   ];
 

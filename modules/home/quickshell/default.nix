@@ -121,7 +121,13 @@ let
 in
 {
   options.programs.quickshell-ii = {
-    enable = lib.mkEnableOption "Quickshell with end4's Illogical Impulse config";
+    # This module is only reachable from graphical hosts (via hyprland), so
+    # importing it implies enabling ii. Set to false to disable on a graphical host.
+    enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Enable Quickshell with end4's Illogical Impulse config";
+    };
   };
 
   config = lib.mkIf cfg.enable {

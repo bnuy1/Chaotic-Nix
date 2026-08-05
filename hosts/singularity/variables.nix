@@ -187,19 +187,13 @@
   };
 
   # -- Server Modules ---------------------------------------------------------
-  # true = enabled with default config, attrset = enabled with custom config, null = not imported
+  # true = enabled with default config, attrset = enabled with custom config,
+  # null = disabled (options stay declared, per-host config lives in default.nix)
   serverModules = {
-    pterodactyl = true;
-    vpn = true;
-    technitium = {
-      # Serve DNS to the home LAN via rack router 192.168.2.2
-      listenAddress = "192.168.2.3";
-    };
+    pterodactyl = null;
+    vpn = null;
+    technitium = null;
     remoteUnlock = true;
-    netboot = {
-      # Netboot interface is LAN-only (never leaves the rack)
-      listenIp = "192.168.2.4";
-      interface = "enp0s31f6";
-    };
+    netboot = null;
   };
 }

@@ -144,10 +144,11 @@
   };
 
   # -- Server Modules ---------------------------------------------------------
-  # true = enabled with default config, attrset = enabled with custom config, null = not imported
+  # true = enabled with default config, attrset = enabled with custom config,
+  # null = disabled (options stay declared, per-host config lives in default.nix)
   serverModules = {
     pterodactyl = null;
-    vpn = true;
+    vpn = null; # needs a WireGuard host key configured (services.vpn.host.privateKeyFile)
     technitium = null;
     netboot = null;
   };

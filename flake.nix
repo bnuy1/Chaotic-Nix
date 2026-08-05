@@ -19,7 +19,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # SOPS secrets manager (for development) so.. its not required if you recieved this file from a friend.
     sops-nix = {
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -49,6 +48,12 @@
     # Spicetify theme manager for Spotify (home-manager module)
     spicetify-nix = {
       url = "github:Gerg-L/spicetify-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    # Declarative Disk Partitioning
+    disko = {
+      url = "github:nix-community/disko/latest";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -122,8 +127,17 @@
           ];
         };
 
+      forAllSystems = nixpkgs.lib.genAttrs [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
     in
     {
+      # Locked disko CLI (used via `nix run /etc/nixos#disko -- --flake ...`)
+      packages = forAllSystems (system: {
+        disko = inputs.disko.packages.${system}.disko;
+      });
+
       nixosConfigurations = builtins.listToAttrs (
         map (name: {
           inherit name;
