@@ -273,15 +273,49 @@ in
     services.dnsmasq = {
       enable = true;
       settings = {
+        log-dhcp = true;
         interface = cfg.interface;
         port = 0;
         dhcp-range = cfg.dhcpRange;
         dhcp-match = [
           "set:ipxe,175"
         ];
+        # dnsmasq only treats a client as PXE if its vendor class matches one of
+        # these (default: "PXEClient"). iPXE identifies itself as "iPXE", so
+        # register it too, otherwise proxy mode silently drops iPXE requests.
+        dhcp-pxe-vendor = [
+          "PXEClient,iPXE"
+        ];
         dhcp-boot = [
           "tag:!ipxe,${bootFile}"
           "tag:ipxe,autoexec.ipxe"
+        ];
+        # Proxy-mode gotcha (dnsmasq >= 2.83): for UEFI clients (arch >= 6) the
+        # DISCOVER reply deliberately omits both option 43 and the boot file when
+        # exactly one matching pxe-service exists ("pxe_uefi_workaround"). The
+        # client is expected to re-ask on port 4011, but common UEFI firmware
+        # never does -> it gets an IP and then times out.
+        # Fix: keep no plain pxe-service matching the EFI arch (7/9) so the
+        # workaround returns 0, which lets dhcp-boot fill the BOOTP file field +
+        # siaddr directly in the offer. Client arch: UEFI x86-64 firmware sends
+        # option 93 = 7 (BC_EFI); iPXE may report 9 (x86-64_EFI) or 0 (x86PC).
+        pxe-service = [
+          "x86PC,\"NixOS iPXE\",${bootFile},${cfg.listenIp}"
+          "tag:ipxe,BC_EFI,\"NixOS\",autoexec.ipxe,${cfg.listenIp}"
+          "tag:ipxe,x86-64_EFI,\"NixOS\",autoexec.ipxe,${cfg.listenIp}"
+        ];
+        # iPXE fetches its boot script from DHCP option 175. Plain dhcp-option is
+        # NOT sent in proxy replies; dhcp-option-pxe is.
+        # encap:43,6,8 = PXE discovery control suboption (43.6) = 8: "use the
+        # bootfile in this DHCP message, skip boot-server discovery". Some UEFI
+        # firmware ignores the bootfile field without this hint.
+        dhcp-option-pxe = [
+          "encap:43,6,8"
+          # Some firmware reads options 66/67 (TFTP server / bootfile) instead of
+          # the BOOTP file field; the client explicitly requests them in option 55.
+          "66,${cfg.listenIp}"
+          "67,${bootFile}"
+          "175,https://${cfg.listenIp}:${toString cfg.httpsPort}/autoexec.ipxe"
         ];
         enable-tftp = true;
         tftp-root = cfg.tftpRoot;

@@ -192,8 +192,11 @@
     pterodactyl = null;
     vpn = null;
     technitium = null;
-    # Netboot lives on singularity (rack LAN) — serving DHCP from the workstation
-    # broke the home network. See plan.md.
-    netboot = null;
+    netboot = {
+      # Rack LAN wired port. listenIp = enp7s0's current DHCP address; will
+      # change on lease renewal unless the rack router reserves it.
+      listenIp = "192.168.2.182";
+      interface = "enp7s0";
+    };
   };
 }
