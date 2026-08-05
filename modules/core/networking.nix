@@ -16,6 +16,9 @@ in
   # Set IPv4 forwarding explicitly to avoid NM race condition (needed for VPN routing)
   boot.kernel.sysctl = lib.optionalAttrs vpnEnable { "net.ipv4.ip_forward" = 1; };
 
+  # Fixes networking related permissions problems
+  users.groups.netdev = { };
+
   # Enable networking
   networking = {
     networkmanager = {
@@ -106,9 +109,10 @@ in
   };
 
   # Open ports in the firewall.           ssh
-  networking.firewall.allowedTCPPorts =
-    [ sshPort ]
-    ++ lib.optionals (vars.rsyncPort or null != null) [ vars.rsyncPort ];
+  networking.firewall.allowedTCPPorts = [
+    sshPort
+  ]
+  ++ lib.optionals (vars.rsyncPort or null != null) [ vars.rsyncPort ];
   networking.firewall.allowedUDPPorts = [ ];
 
   services.fail2ban = {

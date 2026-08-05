@@ -106,7 +106,7 @@ in
     # tty1 autologin via uwsm; guarded against SSH/tty2-6/already-graphical shells
     loginShellInit = lib.mkIf dm.graphical ''
       if not set -q WAYLAND_DISPLAY; and not set -q DISPLAY; and not set -q SSH_CONNECTION; and string match -q '/dev/tty1' (tty)
-          exec uwsm -g -1 start start-hyprland
+          exec uwsm start -g -1 Hyprland
       end
     '';
 

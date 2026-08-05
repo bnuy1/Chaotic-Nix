@@ -136,7 +136,7 @@
 
   # -- Gaming -----------------------------------------------------------------
   steamEnable = true; # Steam + gamescope + gamemode + MangoHud
-  sunshineEnable = true; # Game streaming server (port 47990)
+  sunshineEnable = false; # Game streaming server (port 47990)
   wivrnEnable = true; # WiVRn VR streaming server (OpenXR, ports 9757/5353)
 
   # -- Virtualisation ---------------------------------------------------------
