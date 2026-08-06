@@ -155,7 +155,7 @@ in
 
     # System fonts
     fonts.packages = [
-      (lib.getAttrFromPath (lib.splitString "." (vars.systemFont or "iosevka")) pkgs)
+      (lib.getAttrFromPath (lib.splitString "." (vars.systemFont or "iosevka-bin")) pkgs)
     ];
 
     # Enable sound with pipewire.

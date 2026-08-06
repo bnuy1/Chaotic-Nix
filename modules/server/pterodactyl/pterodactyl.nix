@@ -9,6 +9,10 @@
 let
   cfg = config.services.pterodactyl;
 
+  # https://domain[:8443] — omit the port when it's the default 443
+  appUrl = "https://${cfg.domain}${lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"}";
+  httpRedirect = "https://$host${lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"}$request_uri";
+
   php = pkgs.php83.withExtensions (
     { enabled, all }:
     with all;
@@ -24,10 +28,10 @@ let
 
   wings = pkgs.stdenv.mkDerivation {
     pname = "wings";
-    version = "1.13.0";
+    version = "1.13.2";
     src = pkgs.fetchurl {
-      url = "https://github.com/pterodactyl/wings/releases/download/v${lib.removePrefix "v" "v1.13.0"}/wings_linux_amd64";
-      hash = "sha256-knszEZGNZvG/4J/lfPKb54Y0T1E4QLLy9HL0I94u+N4=";
+      url = "https://github.com/pterodactyl/wings/releases/download/v${lib.removePrefix "v" "v1.13.2"}/wings_linux_amd64";
+      hash = "sha256-k+p9lSt7hHaCsJC94iRuZUPCo20QOo+TMpq7lKHDDqo=";
     };
     dontUnpack = true;
     installPhase = ''
@@ -56,6 +60,12 @@ in
       description = "Data directory for the panel files";
     };
 
+    gamesDir = lib.mkOption {
+      type = lib.types.str;
+      default = "/games/pterodactyl";
+      description = "Directory where Wings stores game server files (Wings config 'system.data', one subdir per server)";
+    };
+
     dbName = lib.mkOption {
       type = lib.types.str;
       default = "pterodactyl";
@@ -80,12 +90,6 @@ in
       description = "IP address for the panel (used by dnsmasq and APP_URL). Set to LAN IP (e.g. 192.168.1.166) for network access";
     };
 
-    useACME = lib.mkOption {
-      type = lib.types.bool;
-      default = false;
-      description = "Enable Let's Encrypt via ACME (requires a real public domain pointed at this server)";
-    };
-
     email = lib.mkOption {
       type = lib.types.str;
       default = "admin@${networkingHostname}.local";
@@ -98,9 +102,41 @@ in
       description = "HTTPS port for the Pterodactyl panel";
     };
 
+    httpsPort = lib.mkOption {
+      type = lib.types.port;
+      default = 443;
+      description = ''
+        Public HTTPS port for the panel. Use a non-default port (e.g. 8443)
+        when the edge router cannot forward 443. Port 443 is always kept for
+        LAN access; http:// on port 80 redirects to this port.
+      '';
+    };
+
+    urlPort = lib.mkOption {
+      type = lib.types.port;
+      default = 443;
+      description = ''
+        Port used in APP_URL and the http->https redirect. 443 normally (e.g.
+        when Cloudflare terminates public traffic in front of the panel); set
+        equal to httpsPort only when the panel is NOT behind a reverse proxy.
+      '';
+    };
+
+    cloudflared = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Enable the Cloudflare Tunnel daemon for this domain. Uses a
+          remotely-managed tunnel: the tunnel token is read from the SOPS
+          secret "pterodactyl/cloudflared_token".
+        '';
+      };
+    };
+
     wingsHttpPort = lib.mkOption {
       type = lib.types.port;
-      default = 8443;
+      default = 8080;
       description = "HTTP port for Wings daemon (game server allocations)";
     };
 
@@ -120,6 +156,9 @@ in
       extraGroups = [ "docker" ];
     };
     users.groups.pterodactyl = { };
+    # nginx must traverse ${cfg.dataDir} to serve static assets; php-fpm
+    # already runs as pterodactyl. Keeping the dir at 0750 (not world-readable).
+    users.users.nginx.extraGroups = [ "pterodactyl" ];
 
     systemd.tmpfiles.settings."pterodactyl-data" = {
       "${cfg.dataDir}" = {
@@ -142,6 +181,13 @@ in
         };
       };
       "/etc/pterodactyl" = {
+        d = {
+          mode = "0750";
+          user = "pterodactyl";
+          group = "pterodactyl";
+        };
+      };
+      "${cfg.gamesDir}" = {
         d = {
           mode = "0750";
           user = "pterodactyl";
@@ -197,51 +243,63 @@ in
       };
     };
 
-    systemd.services.pterodactyl-ssl-cert = {
-      description = "Generate self-signed SSL cert for Pterodactyl";
-      before = [ "nginx.service" ];
-      wantedBy = [ "multi-user.target" ];
-      serviceConfig = {
-        Type = "oneshot";
-        ProtectSystem = "strict";
-        ReadWritePaths = [ "/var/lib/pterodactyl" ];
-        PrivateTmp = true;
-        NoNewPrivileges = true;
-      };
-      script = ''
-        mkdir -p /var/lib/pterodactyl/ssl
-        if [ ! -f /var/lib/pterodactyl/ssl/key.pem ]; then
-          ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:4096 \
-            -keyout /var/lib/pterodactyl/ssl/key.pem \
-            -out /var/lib/pterodactyl/ssl/cert.pem \
-            -days 365 -nodes \
-            -subj "/CN=${cfg.domain}" \
-            -addext "subjectAltName=DNS:${cfg.domain},IP:${cfg.listenIP}"
-        fi
-        chmod 644 /var/lib/pterodactyl/ssl/cert.pem
-        chmod 640 /var/lib/pterodactyl/ssl/key.pem
-        chown root:nginx /var/lib/pterodactyl/ssl/key.pem /var/lib/pterodactyl/ssl/cert.pem
-      '';
-    };
+    # ------------------------------------------------------------------------
+    # ALTERNATIVE: self-signed cert for LAN-only setups WITHOUT Let's Encrypt.
+    # If you can't reach Let's Encrypt (no port 80 open to the internet), then:
+    #   1. uncomment this service AND the "Self-signed (no Let's Encrypt)"
+    #      blocks in services.nginx + APP_URL + firewall below, and
+    #   2. remove enableACME/forceSSL + security.acme.
+    #
+    # systemd.services.pterodactyl-ssl-cert = {
+    #   description = "Generate self-signed SSL cert for Pterodactyl";
+    #   before = [ "nginx.service" ];
+    #   wantedBy = [ "multi-user.target" ];
+    #   serviceConfig = {
+    #     Type = "oneshot";
+    #     StateDirectory = "pterodactyl";
+    #     ProtectSystem = "strict";
+    #     ReadWritePaths = [ "/var/lib/pterodactyl" ];
+    #     PrivateTmp = true;
+    #     NoNewPrivileges = true;
+    #   };
+    #   script = ''
+    #     mkdir -p /var/lib/pterodactyl/ssl
+    #     if [ ! -f /var/lib/pterodactyl/ssl/key.pem ]; then
+    #       ${pkgs.openssl}/bin/openssl req -x509 -newkey rsa:4096 \
+    #         -keyout /var/lib/pterodactyl/ssl/key.pem \
+    #         -out /var/lib/pterodactyl/ssl/cert.pem \
+    #         -days 365 -nodes \
+    #         -subj "/CN=${cfg.domain}" \
+    #         -addext "subjectAltName=DNS:${cfg.domain},IP:${cfg.listenIP}"
+    #     fi
+    #     chmod 644 /var/lib/pterodactyl/ssl/cert.pem
+    #     chmod 640 /var/lib/pterodactyl/ssl/key.pem
+    #     chown root:nginx /var/lib/pterodactyl/ssl/key.pem /var/lib/pterodactyl/ssl/cert.pem
+    #   '';
+    # };
+    # ------------------------------------------------------------------------
 
     services.nginx = {
       enable = true;
       virtualHosts.${cfg.domain} = {
         root = "${cfg.dataDir}/public";
         extraConfig = "index index.php;";
+        # Public FQDN: Let's Encrypt via ACME, served on 443 AND cfg.httpsPort.
+        # Port 80 is handled by the "${cfg.domain}-http" redirect vhost below,
+        # which also answers the ACME http-01 challenge for this cert.
+        enableACME = true;
         addSSL = true;
-        sslCertificate = "/var/lib/pterodactyl/ssl/cert.pem";
-        sslCertificateKey = "/var/lib/pterodactyl/ssl/key.pem";
         listen = [
-          {
-            addr = cfg.listenIP;
-            port = cfg.panelPort;
-            ssl = true;
-          }
+          { addr = "0.0.0.0"; port = 443; ssl = true; }
+          { addr = "0.0.0.0"; port = cfg.httpsPort; ssl = true; }
         ];
         locations."/" = {
           tryFiles = "$uri $uri/ /index.php?$query_string";
         };
+        # Note: enableACME auto-adds `location ^~ /.well-known/acme-challenge/`
+        # (acmeRoot=/var/lib/acme/acme-challenge) on this vhost, so http-01
+        # challenges are served on 443/8443 too (validations reach the origin
+        # through the Cloudflare tunnel).
         locations."~ \.php$" = {
           extraConfig = ''
             fastcgi_split_path_info ^(.+\.php)(/.+)$;
@@ -255,30 +313,49 @@ in
         locations."~ /\\." = {
           extraConfig = "deny all;";
         };
-        locations."/.well-known" = lib.mkIf cfg.useACME {
-          extraConfig = "allow all;";
+        # Self-signed (no Let's Encrypt): replace enableACME/addSSL/listen above with:
+        #   sslCertificate = "/var/lib/pterodactyl/ssl/cert.pem";
+        #   sslCertificateKey = "/var/lib/pterodactyl/ssl/key.pem";
+        #   listen = [{ addr = cfg.listenIP; port = cfg.panelPort; ssl = true; }];
+      };
+
+      # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
+      # http-01 challenge for the same Let's Encrypt cert (via useACMEHost).
+      virtualHosts."${cfg.domain}-http" = {
+        listen = [
+          { addr = "0.0.0.0"; port = 80; }
+        ];
+        useACMEHost = cfg.domain;
+        locations."/" = {
+          extraConfig = "return 301 ${httpRedirect};";
         };
       };
 
-      virtualHosts."${cfg.domain}-http" = {
-        listen = [
-          {
-            addr = cfg.listenIP;
-            port = 8080;
-          }
-        ];
-        locations."/" = {
-          extraConfig = "return 301 https://$host:${toString cfg.panelPort}$request_uri;";
-        };
-      };
+      # Self-signed (no Let's Encrypt): also uncomment this http->https
+      # redirect vhost (serves on listenIP:8080):
+      # virtualHosts."${cfg.domain}-http" = {
+      #   listen = [{ addr = cfg.listenIP; port = 8080; }];
+      #   useACMEHost = null;
+      #   locations."/" = {
+      #     extraConfig = "return 301 https://$host:${toString cfg.panelPort}$request_uri;";
+      #   };
+      # };
+    };
+
+    security.acme = {
+      acceptTerms = true;
+      defaults.email = cfg.email;
     };
 
     networking.firewall.allowedTCPPorts = [
-      8080
-      cfg.panelPort
+      80
+      443
+      cfg.httpsPort
       cfg.wingsHttpPort
       cfg.wingsSftpPort
     ];
+    # Self-signed (no Let's Encrypt): replace the ports above with:
+    #   [ 8080 cfg.panelPort cfg.wingsHttpPort cfg.wingsSftpPort ]
 
     systemd.services.pterodactyl-set-db-password = {
       description = "Set Pterodactyl database user password from SOPS";
@@ -331,7 +408,9 @@ in
         APP_ENV=production
         APP_DEBUG=false
         APP_KEY=$APP_KEY
-        APP_URL=https://${cfg.listenIP}:${toString cfg.panelPort}
+        APP_URL=${appUrl}
+        # Self-signed (no Let's Encrypt): replace the line above with:
+        # APP_URL=https://${cfg.listenIP}:${toString cfg.panelPort}
 
         DB_DATABASE=${cfg.dbName}
         DB_HOST=localhost
@@ -352,8 +431,29 @@ in
                 chmod 755 "${cfg.dataDir}/public"
                 find "${cfg.dataDir}/public" -type d -exec chmod 755 {} \;
                 find "${cfg.dataDir}/public" -type f -exec chmod 644 {} \;
+                chmod 600 "${cfg.dataDir}/.env"
                 chown pterodactyl:pterodactyl "${cfg.dataDir}/.env"
       '';
+    };
+
+    systemd.services.cloudflared = lib.mkIf cfg.cloudflared.enable {
+      description = "Cloudflare Tunnel daemon (remotely-managed)";
+      after = [
+        "network-online.target"
+        "sops-nix.service"
+        "nginx.service"
+      ];
+      wants = [ "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        User = "pterodactyl";
+        Group = "pterodactyl";
+        Restart = "on-failure";
+        RestartSec = 5;
+        # Remotely-managed tunnel: ingress is configured in the Cloudflare
+        # Zero Trust dashboard; cloudflared only needs the tunnel token.
+        ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token \"$(cat ${config.sops.secrets."pterodactyl/cloudflared_token".path})\"'";
+      };
     };
 
     systemd.services.pteroq = {
@@ -414,7 +514,7 @@ in
         "redis-pterodactyl.service"
       ];
       wantedBy = [ "multi-user.target" ];
-      path = [ php ];
+      path = [ php pkgs.mariadb ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -429,9 +529,31 @@ in
       };
       script = ''
         for i in {1..10}; do
-          ${php}/bin/php ${cfg.dataDir}/artisan migrate --force && break
+          ${php}/bin/php ${cfg.dataDir}/artisan migrate --force && exit 0
           sleep 2
         done
+        exit 1
+      '';
+    };
+
+    systemd.services.pterodactyl-wings-gamesdir = {
+      description = "Point Wings game files at ${cfg.gamesDir}";
+      before = [ "wings.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        install -d -o pterodactyl -g pterodactyl -m 0750 "${cfg.gamesDir}"
+        # If a Wings config exists (placed/downloaded from the panel or created
+        # by `wings configure`), make sure system.data points at gamesDir so all
+        # game server files land under ${cfg.gamesDir}/<server-uuid>.
+        if [[ -f /etc/pterodactyl/config.yml ]]; then
+          if grep -q '^  data:' /etc/pterodactyl/config.yml; then
+            sed -i 's#^  data:.*#  data: ${cfg.gamesDir}#' /etc/pterodactyl/config.yml
+          fi
+        fi
       '';
     };
 
@@ -452,7 +574,7 @@ in
         Restart = "always";
         RestartSec = 10;
         ProtectSystem = "strict";
-        ReadWritePaths = [ "/etc/pterodactyl" ];
+        ReadWritePaths = [ "/etc/pterodactyl" cfg.gamesDir ];
         PrivateTmp = true;
         NoNewPrivileges = true;
         ProtectHome = true;
@@ -496,6 +618,11 @@ in
     sops.secrets."pterodactyl/app_key" = {
       owner = "pterodactyl";
       mode = "0440";
+    };
+
+    sops.secrets."pterodactyl/cloudflared_token" = lib.mkIf cfg.cloudflared.enable {
+      owner = "pterodactyl";
+      mode = "0400";
     };
   };
 }

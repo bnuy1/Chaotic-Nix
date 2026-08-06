@@ -5,13 +5,13 @@
 #   # Edit values in plaintext (runs $EDITOR):
 #   sudo nix-shell -p sops --run "sops secrets.yaml"
 #
-#   # Encrypt an existing plaintext file:
-#   sudo nix-shell -p sops --run "sops --encrypt --in-place secrets.yaml"
+#   # Encrypt an existing plaintext file (uses the SSH host key as the age identity):
+#   sudo nix-shell -p sops --run "SOPS_AGE_SSH_PRIVATE_KEY_FILE=/etc/ssh/ssh_host_ed25519_key sops --encrypt --in-place secrets.yaml"
 #
 #   # Decrypt to inspect:
-#   sudo nix-shell -p sops --run "sops --decrypt secrets.yaml"
+#   sudo nix-shell -p sops --run "SOPS_AGE_SSH_PRIVATE_KEY_FILE=/etc/ssh/ssh_host_ed25519_key sops --decrypt secrets.yaml"
 
 keys:
-  - &host_key age169cqlzrfhr549nea59v0z9dgarkmx3spa2r82q77y2ecttnhlfkswnkr22
+  - &host_key age1vkp98gfd99wv0pepkrhjsakg4wgl0q85j9m9l5xv5c94eh0f2cdsuggyct
 creation_rules:
   - age: *host_key

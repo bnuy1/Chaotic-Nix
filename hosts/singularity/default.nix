@@ -24,7 +24,26 @@
   # service is disabled so it can be re-enabled without re-typing them.
 
   # Pterodactyl panel (reserved 192.168.2.3). Disabled via serverModules.pterodactyl.
-  services.pterodactyl.listenIP = "192.168.2.3";
+  # Public access: Cloudflare Tunnel (outbound-only from the server), so the
+  # edge router's managed 443 rule and HSTS preload no longer matter.
+  #  - Cloudflare zone: bnuy.dev; minecraft.bnuy.dev -> tunnel (CNAME
+  #    minecraft.bnuy.dev.cfargotunnel.com, proxied).
+  #  - Tunnel ingress: HTTPS -> localhost:443, Origin Server Name
+  #    minecraft.bnuy.dev (panel serves the Let's Encrypt cert on 443/8443).
+  #  - Direct/LAN access still works at https://minecraft.bnuy.dev:8443 and
+  #    port 443 (LE cert via ACME).
+  services.pterodactyl = {
+    listenIP = "192.168.2.3";
+    domain = "minecraft.bnuy.dev";
+    email = "enigma558@proton.me";
+    httpsPort = 8443;
+    # Clean URL through Cloudflare: APP_URL/redirects use https://minecraft.bnuy.dev.
+    urlPort = 443;
+    # Cloudflare Tunnel daemon. Token must exist in the SOPS secret
+    # "pterodactyl/cloudflared_token" (under pterodactyl.cloudflared_token in
+    # /etc/nixos/modules/server/pterodactyl/secrets.yaml) BEFORE rebuilding.
+    cloudflared.enable = true;
+  };
 
   # Technitium DNS (serves home LAN via rack router 192.168.2.2).
   # Disabled via serverModules.technitium.

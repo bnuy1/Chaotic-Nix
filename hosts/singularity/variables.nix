@@ -149,7 +149,7 @@
   };
 
   # -- System -----------------------------------------------------------------
-  systemFont = "iosevka"; # System monospace font                          (default: "iosevka")
+  systemFont = "iosevka-bin"; # System monospace font                          (default: "iosevka")
   locale = "en_US.UTF-8"; # System locale                                  (default: "en_US.UTF-8")
   nonNixBinarySupport = false; # nix-ld: run non-Nix binaries              (default: true)
 
@@ -190,7 +190,7 @@
   # true = enabled with default config, attrset = enabled with custom config,
   # null = disabled (options stay declared, per-host config lives in default.nix)
   serverModules = {
-    pterodactyl = null;
+    pterodactyl = true;
     vpn = null;
     technitium = null;
     remoteUnlock = true;

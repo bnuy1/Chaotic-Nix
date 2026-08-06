@@ -151,7 +151,7 @@
   rsyncPort = 39127; # SSH port for rsync backup tunnel                    (default: null)
 
   # -- System -----------------------------------------------------------------
-  systemFont = "iosevka"; # System monospace font                          (default: "iosevka")
+  systemFont = "iosevka-bin"; # System monospace font                          (default: "iosevka")
   locale = "en_US.UTF-8"; # System locale                                  (default: "en_US.UTF-8")
   nonNixBinarySupport = true; # nix-ld: run non-Nix binaries               (default: true)
 
