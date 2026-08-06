@@ -103,6 +103,14 @@ Every variable has a default, so you generally need to override what differs fro
       .#nixosConfigurations.singularity.config.system.build.destroyFormatMount
     # equivalent to: nix run .#disko -- --mode destroy,format,mount --flake .#singularity
 
+    # 3b. On a *reinstall*, recreate the initrd SSH host key used for remote
+    #    unlock (`services.remoteUnlock.hostKeys`). The old key lived on the
+    #    wiped disk, so nixos-install would otherwise fail with
+    #    "failed to create initrd secrets!" when the bootloader copies it into
+    #    the initrd. (It persists on the installed root pool afterwards.)
+    mkdir -p /mnt/etc/secrets/initrd
+    ssh-keygen -t ed25519 -N "" -f /mnt/etc/secrets/initrd/ssh_host_ed25519_key
+
     # 4. Sanity-check the result
     zpool status && df -h /mnt
 
