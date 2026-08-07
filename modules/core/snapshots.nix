@@ -80,9 +80,14 @@ in
       boot.supportedFilesystems = [ "btrfs" ];
       services.btrfs.autoScrub.enable = true;
 
+      # btrbk does not create the snapshot directory itself.
+      # Relative path resolves against the volume root (/) -> /.btrbk.
+      systemd.tmpfiles.rules = [ "d /.btrbk 0700 btrbk btrbk -" ];
+
       services.btrbk.instances.btrbk = {
         onCalendar = schedule;
         settings = {
+          snapshot_dir = ".btrbk";
           snapshot_preserve = "${toString ret.hourly}h ${toString ret.daily}d ${toString ret.weekly}w ${toString ret.monthly}m";
           snapshot_preserve_min = "${toString ret.daily}d";
           volume.${btrbkVolume}.subvolume = btrbkSubvols;

@@ -1,4 +1,11 @@
-{ config, pkgs, lib, host, vars, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  host,
+  vars,
+  ...
+}:
 
 let
   defaultLocale = vars.locale or "en_US.UTF-8";
@@ -14,16 +21,18 @@ in
   config = {
     # Allow unfree packages
     nixpkgs.config.allowUnfree = false;
-    nixpkgs.config.allowUnfreePredicate = pkg:
-      builtins.elem (lib.getName pkg) config.custom.allowUnfreePackages;
+    nixpkgs.config.allowUnfreePredicate =
+      pkg: builtins.elem (lib.getName pkg) config.custom.allowUnfreePackages;
 
     nixpkgs.config.permittedInsecurePackages = lib.optionals (!isHeadless) [
       "ventoy-1.1.07" # TODO: bump as needed; nixpkgs will flag this when stale
     ];
 
-    custom.allowUnfreePackages = lib.optionals (vars.browser == "google-chrome" || vars.browser == "chrome") [
-      "google-chrome"
-    ];
+    custom.allowUnfreePackages =
+      lib.optionals (vars.browser == "google-chrome" || vars.browser == "chrome")
+        [
+          "google-chrome"
+        ];
     # Garbage collection
     nix.gc = {
       automatic = true;
@@ -80,7 +89,8 @@ in
       createHome = true;
     };
     # Power Management
-    services.power-profiles-daemon.enable = (vars.powerManagementUtility or "power-profiles-daemon") == "power-profiles-daemon";
+    services.power-profiles-daemon.enable =
+      (vars.powerManagementUtility or "power-profiles-daemon") == "power-profiles-daemon";
     services.upower.enable = true;
 
     # File manager mounting support (USB drives, etc.)
@@ -88,37 +98,48 @@ in
     services.udisks2.enable = !isHeadless;
     security.polkit.enable = true;
     programs.thunar.enable = (vars.fileManager or null) == "thunar";
-    boot.supportedFilesystems = lib.optionals (!isHeadless) [ "exfat" ] ++ lib.optionals (vars.zfs or null != null) [ "zfs" ];
-    boot.kernelModules = lib.optionals (!isHeadless) [ "exfat" "isofs" "udf" "usb_storage" "uas" "sd_mod" ];
+    boot.supportedFilesystems =
+      lib.optionals (!isHeadless) [ "exfat" ] ++ lib.optionals (vars.zfs or null != null) [ "zfs" ];
+    boot.kernelModules = lib.optionals (!isHeadless) [
+      "exfat"
+      "isofs"
+      "udf"
+      "usb_storage"
+      "uas"
+      "sd_mod"
+    ];
 
     services.fstrim.enable = true;
 
     hardware.enableRedistributableFirmware = !isHeadless;
-    hardware.firmware = lib.optionals (!isHeadless) (with pkgs; [
-      linux-firmware
-    ]);
+    hardware.firmware = lib.optionals (!isHeadless) (
+      with pkgs;
+      [
+        linux-firmware
+      ]
+    );
 
     # Kernel hardening
     security.lockKernelModules = true;
     security.protectKernelImage = true;
     boot.kernel.sysctl = {
-      "kernel.kptr_restrict" = "2";        # hide kernel addresses
-      "kernel.dmesg_restrict" = "1";       # only root sees kernel logs
-      "net.core.bpf_jit_harden" = "2";     # harden bpf compiler
-      "kernel.yama.ptrace_scope" = "2";    # only root can debug other procs
+      "kernel.kptr_restrict" = "2"; # hide kernel addresses
+      "kernel.dmesg_restrict" = "1"; # only root sees kernel logs
+      "net.core.bpf_jit_harden" = "2"; # harden bpf compiler
+      "kernel.yama.ptrace_scope" = "2"; # only root can debug other procs
 
-      "net.ipv4.tcp_syncookies" = "1";           # stop syn floods
-      "net.ipv4.conf.all.rp_filter" = "1";       # drop spoofed packets
-      "net.ipv4.conf.default.rp_filter" = "1";   # same for new ifaces
-      "net.ipv4.conf.all.accept_redirects" = "0";  # ignore route hijacks
+      "net.ipv4.tcp_syncookies" = "1"; # stop syn floods
+      "net.ipv4.conf.all.rp_filter" = "1"; # drop spoofed packets
+      "net.ipv4.conf.default.rp_filter" = "1"; # same for new ifaces
+      "net.ipv4.conf.all.accept_redirects" = "0"; # ignore route hijacks
       "net.ipv4.conf.default.accept_redirects" = "0";
       "net.ipv4.conf.all.secure_redirects" = "0";
       "net.ipv4.conf.default.secure_redirects" = "0";
       "net.ipv6.conf.all.accept_redirects" = "0";
       "net.ipv6.conf.default.accept_redirects" = "0";
-      "net.ipv4.conf.all.log_martians" = "1";     # log weird packets
+      "net.ipv4.conf.all.log_martians" = "1"; # log weird packets
       "net.ipv4.conf.default.log_martians" = "1";
-      "net.ipv4.icmp_echo_ignore_broadcasts" = "1";      # ignore ping floods
+      "net.ipv4.icmp_echo_ignore_broadcasts" = "1"; # ignore ping floods
       "net.ipv4.icmp_ignore_bogus_error_responses" = "1"; # ignore fake errors
     };
 
@@ -137,7 +158,10 @@ in
       ];
       min-free = "2G";
       max-free = "10G";
-      trusted-users = [ "root" "@wheel" ];
+      trusted-users = [
+        "root"
+        "@wheel"
+      ];
       allowed-users = if isHeadless then [ "@wheel" ] else [ "*" ];
       substituters = [
         "https://cache.nixos.org"

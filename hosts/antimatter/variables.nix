@@ -192,6 +192,20 @@
     pterodactyl = null;
     vpn = null;
     technitium = null;
+    # Documents sync (phone <-> antimatter), plaintext + bidirectional.
+    # The folder is declared here; add the phone device (with its full device
+    # ID) to settings.devices and this folder's `devices` list once known.
+    # NOTE: syncthing-init re-pushes this folder on every boot, so until the
+    # phone device is declared, GUI-added folder shares get reset on reboot.
+    syncthing = {
+      settings.folders = {
+        documents = {
+          id = "documents";
+          path = "/home/bnuy/Documents";
+          devices = [ ];
+        };
+      };
+    };
     netboot = {
       listenIp = "192.168.2.182";
       interface = "enp7s0";

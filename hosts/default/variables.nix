@@ -207,6 +207,7 @@
     pterodactyl = null;
     vpn = null;
     technitium = null;
+    syncthing = null;
     netboot = null;
   };
 }
