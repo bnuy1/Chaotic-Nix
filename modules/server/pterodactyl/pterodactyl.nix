@@ -38,6 +38,32 @@ let
       install -m755 -D $src $out/bin/wings
     '';
   };
+
+  # Shared nginx locations for both the public FQDN vhost and the LAN IP vhost.
+  panelLocations = {
+    "/" = {
+      tryFiles = "$uri $uri/ /index.php?$query_string";
+    };
+    "~ \.php$" = {
+      extraConfig = ''
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:${config.services.phpfpm.pools.pterodactyl.socket};
+        fastcgi_index index.php;
+        include ${pkgs.nginx}/conf/fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+      '';
+    };
+    "~ /\\." = {
+      extraConfig = "deny all;";
+    };
+  };
+
+  # SSL listen directives shared by both panel vhosts (443 + cfg.httpsPort).
+  panelSslListen = [
+    { addr = "0.0.0.0"; port = 443; ssl = true; }
+    { addr = "0.0.0.0"; port = cfg.httpsPort; ssl = true; }
+  ];
 in
 {
   options.services.pterodactyl = {
@@ -145,6 +171,20 @@ in
       default = 2022;
       description = "SFTP port for Wings daemon";
     };
+
+    # Cert served on the LAN vhost (https://listenIP) AND used by Wings for its
+    # own API TLS. Issued by the local step-ca; must be readable by both nginx
+    # and the pterodactyl user (both in group pterodactyl).
+    lanCertFile = lib.mkOption {
+      type = lib.types.str;
+      default = "/var/lib/pterodactyl/ssl/cert.pem";
+      description = "TLS certificate for the LAN panel vhost + Wings API";
+    };
+    lanCertKey = lib.mkOption {
+      type = lib.types.str;
+      default = "/var/lib/pterodactyl/ssl/key.pem";
+      description = "TLS private key for the LAN panel vhost + Wings API";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -153,6 +193,10 @@ in
       group = "pterodactyl";
       home = cfg.dataDir;
       createHome = true;
+      # homeMode defaults to "700", which clobbers /srv/pterodactyl to 0700 on
+      # every nixos-rebuild switch and breaks nginx asset serving. 0750 keeps
+      # the dir traversable for the nginx worker (member of group pterodactyl).
+      homeMode = "750";
       extraGroups = [ "docker" ];
     };
     users.groups.pterodactyl = { };
@@ -192,6 +236,22 @@ in
           mode = "0750";
           user = "pterodactyl";
           group = "pterodactyl";
+        };
+      };
+      # nginx (uid 60, runs as User=nginx) must be able to read the LAN TLS
+      # certs; they are generated as root:root 0640, so pin them to group nginx.
+      "${cfg.dataDir}/ssl/cert.pem" = {
+        z = {
+          mode = "0640";
+          user = "root";
+          group = "nginx";
+        };
+      };
+      "${cfg.dataDir}/ssl/key.pem" = {
+        z = {
+          mode = "0640";
+          user = "root";
+          group = "nginx";
         };
       };
     };
@@ -281,42 +341,31 @@ in
 
     services.nginx = {
       enable = true;
+
+      # Public FQDN: Let's Encrypt via ACME, served on 443 AND cfg.httpsPort.
+      # This is the origin cert Cloudflare validates against (Full-strict) for
+      # the tunneled minecraft.bnuy.dev traffic.
       virtualHosts.${cfg.domain} = {
         root = "${cfg.dataDir}/public";
         extraConfig = "index index.php;";
-        # Public FQDN: Let's Encrypt via ACME, served on 443 AND cfg.httpsPort.
-        # Port 80 is handled by the "${cfg.domain}-http" redirect vhost below,
-        # which also answers the ACME http-01 challenge for this cert.
         enableACME = true;
         addSSL = true;
-        listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
-          { addr = "0.0.0.0"; port = cfg.httpsPort; ssl = true; }
-        ];
-        locations."/" = {
-          tryFiles = "$uri $uri/ /index.php?$query_string";
-        };
-        # Note: enableACME auto-adds `location ^~ /.well-known/acme-challenge/`
-        # (acmeRoot=/var/lib/acme/acme-challenge) on this vhost, so http-01
-        # challenges are served on 443/8443 too (validations reach the origin
-        # through the Cloudflare tunnel).
-        locations."~ \.php$" = {
-          extraConfig = ''
-            fastcgi_split_path_info ^(.+\.php)(/.+)$;
-            fastcgi_pass unix:${config.services.phpfpm.pools.pterodactyl.socket};
-            fastcgi_index index.php;
-            include ${pkgs.nginx}/conf/fastcgi_params;
-            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-            fastcgi_param PATH_INFO $fastcgi_path_info;
-          '';
-        };
-        locations."~ /\\." = {
-          extraConfig = "deny all;";
-        };
-        # Self-signed (no Let's Encrypt): replace enableACME/addSSL/listen above with:
-        #   sslCertificate = "/var/lib/pterodactyl/ssl/cert.pem";
-        #   sslCertificateKey = "/var/lib/pterodactyl/ssl/key.pem";
-        #   listen = [{ addr = cfg.listenIP; port = cfg.panelPort; ssl = true; }];
+        listen = panelSslListen;
+        locations = panelLocations;
+      };
+
+      # LAN/private vhost: reach the panel at https://${cfg.listenIP} with a
+      # step-ca-issued cert (no browser warning once the root is installed).
+      # Also the endpoint Wings uses for its panel connection (remote).
+      virtualHosts.${cfg.listenIP} = {
+        root = "${cfg.dataDir}/public";
+        extraConfig = "index index.php;";
+        addSSL = true;
+        sslCertificate = cfg.lanCertFile;
+        sslCertificateKey = cfg.lanCertKey;
+        default = true;
+        listen = panelSslListen;
+        locations = panelLocations;
       };
 
       # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
@@ -330,16 +379,6 @@ in
           extraConfig = "return 301 ${httpRedirect};";
         };
       };
-
-      # Self-signed (no Let's Encrypt): also uncomment this http->https
-      # redirect vhost (serves on listenIP:8080):
-      # virtualHosts."${cfg.domain}-http" = {
-      #   listen = [{ addr = cfg.listenIP; port = 8080; }];
-      #   useACMEHost = null;
-      #   locations."/" = {
-      #     extraConfig = "return 301 https://$host:${toString cfg.panelPort}$request_uri;";
-      #   };
-      # };
     };
 
     security.acme = {
@@ -546,6 +585,10 @@ in
       };
       script = ''
         install -d -o pterodactyl -g pterodactyl -m 0750 "${cfg.gamesDir}"
+        # LAN TLS cert (step-ca-issued): both nginx and wings need to read it.
+        # Both are in the pterodactyl group; enforce ownership/perms each boot.
+        chown root:pterodactyl ${cfg.lanCertFile} ${cfg.lanCertKey} 2>/dev/null || true
+        chmod 0640 ${cfg.lanCertFile} ${cfg.lanCertKey} 2>/dev/null || true
         # If a Wings config exists (placed/downloaded from the panel or created
         # by `wings configure`), make sure system.data points at gamesDir so all
         # game server files land under ${cfg.gamesDir}/<server-uuid>.
@@ -567,15 +610,30 @@ in
       wantedBy = [ "multi-user.target" ];
       path = [ wings ];
       serviceConfig = {
-        User = "pterodactyl";
-        Group = "pterodactyl";
+        # Wings must run as root: install containers run as root and leave
+        # root-owned files in the server directory, which wings chowns to the
+        # container user during the pre-boot process. Running as "pterodactyl"
+        # breaks that chown ("lchownat velocity.toml: permission denied").
         WorkingDirectory = "/etc/pterodactyl";
         ExecStart = "${wings}/bin/wings";
         Restart = "always";
         RestartSec = 10;
         ProtectSystem = "strict";
-        ReadWritePaths = [ "/etc/pterodactyl" cfg.gamesDir ];
-        PrivateTmp = true;
+        # /tmp must be writable: Wings writes install scripts to
+        # /tmp/pterodactyl and bind-mounts them into Docker containers.
+        ReadWritePaths = [ "/etc/pterodactyl" cfg.gamesDir "/tmp" ];
+        # systemd-managed writable dirs (created+owned on start, writable even
+        # under ProtectSystem=strict):
+        #   /var/lib/pterodactyl  (ssl certs, archives, backups)
+        #   /var/log/pterodactyl  (wings logs)
+        #   /run/wings            (machine-id, tmpfs state)
+        StateDirectory = "pterodactyl";
+        LogsDirectory = "pterodactyl";
+        RuntimeDirectory = "wings";
+        # Must be false: Wings writes install scripts to /tmp/pterodactyl and
+        # bind-mounts them into Docker containers. With PrivateTmp the docker
+        # daemon cannot see that path ("bind source path does not exist").
+        PrivateTmp = false;
         NoNewPrivileges = true;
         ProtectHome = true;
         ProtectKernelTunables = true;

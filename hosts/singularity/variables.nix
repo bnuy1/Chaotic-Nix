@@ -191,6 +191,7 @@
   # null = disabled (options stay declared, per-host config lives in default.nix)
   serverModules = {
     pterodactyl = true;
+    step-ca = true;
     vpn = null;
     technitium = null;
     remoteUnlock = true;

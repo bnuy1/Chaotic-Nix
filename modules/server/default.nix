@@ -15,6 +15,7 @@
 let
   serverModuleMap = {
     pterodactyl = ./pterodactyl;
+    step-ca = ./step-ca;
     vpn = ./vpn;
     technitium = ./technitium;
     netboot = ./netboot;

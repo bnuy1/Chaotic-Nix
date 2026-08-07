@@ -8,6 +8,10 @@ in
   virtualisation = {
     docker = {
       enable = dockerEnable;
+      # Root filesystem is ZFS; the default overlayfs driver cannot mount
+      # overlay filesystems on ZFS ("no such device"). Use the native zfs
+      # storage driver instead.
+      storageDriver = "zfs";
     };
 
     podman.enable = vars.podmanEnable or false;
