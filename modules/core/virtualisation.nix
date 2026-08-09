@@ -10,8 +10,8 @@ in
       enable = dockerEnable;
       # Root filesystem is ZFS; the default overlayfs driver cannot mount
       # overlay filesystems on ZFS ("no such device"). Use the native zfs
-      # storage driver instead.
-      storageDriver = "zfs";
+      # storage driver instead. Only for ZFS hosts (overlayfs is fine on btrfs).
+      storageDriver = lib.mkIf (vars.zfs or null != null) "zfs";
     };
 
     podman.enable = vars.podmanEnable or false;
