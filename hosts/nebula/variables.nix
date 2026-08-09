@@ -67,6 +67,9 @@
   # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = "librewolf";
 
+  # Trust the bnuy LAN CA root so browsers accept step-ca-issued leaf certs.
+  trustBnuyCA = true;
+
   # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
   editor = "nvim";
 
