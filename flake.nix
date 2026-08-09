@@ -57,6 +57,14 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Mailcow docker mailserver source. Pinned here so the git rev + container
+    # image tags land in flake.lock; delete flake.lock and re-lock to update.
+    # (mailcow's "stable" channel is its master branch.)
+    mailcow = {
+      url = "github:mailcow/mailcow-dockerized";
+      flake = false;
+    };
+
   };
 
   outputs =
@@ -107,6 +115,9 @@
               inherit inputs;
               inherit networkingHostname; # The actual target hostname (e.g., "arbitrary-name")
               host = matchedHost; # The folder matched (e.g., "default" or "antimatter")
+
+              # Pinned mailcow-dockerized checkout (flake input, hash in flake.lock).
+              mailcowSrc = inputs.mailcow;
 
               # Safely loads variables from the matched folder, preventing missing file crashes
               vars = nixpkgs.lib.recursiveUpdate defaultVars hostVars;

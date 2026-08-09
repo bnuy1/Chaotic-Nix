@@ -272,6 +272,22 @@
         "type": "github"
       }
     },
+    "mailcow": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1785913252,
+        "narHash": "sha256-vLgdXKywNEgUNXHNDtMtRfeXbFnZwkN43WMyn1dyOgg=",
+        "owner": "mailcow",
+        "repo": "mailcow-dockerized",
+        "rev": "06424670fa5d60fee851f58bfc49f66086d5f0a6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mailcow",
+        "repo": "mailcow-dockerized",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1785977295,
@@ -362,6 +378,7 @@
         "dots-hyprland": "dots-hyprland",
         "home-manager": "home-manager",
         "lanzaboote": "lanzaboote",
+        "mailcow": "mailcow",
         "nixpkgs": "nixpkgs",
         "nixvim": "nixvim",
         "rounded-polygon": "rounded-polygon",

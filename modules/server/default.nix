@@ -21,6 +21,7 @@ let
     netboot = ./netboot;
     remoteUnlock = ./remote-unlock;
     syncthing = ./syncthing;
+    mailcow = ./mailserver;
   };
 
   # Generate a module per server module that pins services.<name>.enable:

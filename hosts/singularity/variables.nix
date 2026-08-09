@@ -196,5 +196,6 @@
     technitium = null;
     remoteUnlock = true;
     netboot = null;
+    mailcow = true;
   };
 }

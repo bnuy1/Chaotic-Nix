@@ -1,4 +1,36 @@
+# Single dedicated sops age key for all server secrets on singularity.
+# The private key lives on singularity at:
+#   /var/lib/sops-nix/keys.txt   (chmod 600), read at boot via sops.age.keyFile.
+# CLI copy for sops commands: /root/.config/sops/age/keys.txt.
+#
+# NOTE: the `sops` in this nixpkgs (3.13.3) does NOT honor
+# SOPS_AGE_SSH_PRIVATE_KEY_FILE, hence keys.txt files.
+#
+# Usage (with the CLI keys.txt in place):
+#   # Edit values in plaintext (runs $EDITOR):
+#   sudo nix-shell -p sops --run "sops secrets.yaml"
+#
+#   # Encrypt an existing plaintext file:
+#   sudo nix-shell -p sops --run "sops --encrypt --in-place secrets.yaml"
+#
+#   # Decrypt to inspect:
+#   sudo nix-shell -p sops --run "sops -d --output-type yaml secrets.yaml"
+#
+# To ROTATE the key (values unchanged, no data loss):
+#   1. Generate a new keypair on singularity:
+#        sudo nix-shell -p age --run "age-keygen -o /tmp/new-sops.key"
+#      (note the printed "Public key: age1..." line)
+#   2. Replace the recipient below with the new public key.
+#   3. Re-encrypt every secrets.yaml under this dir to the new recipient:
+#        cd modules/server/pterodactyl && sudo nix-shell -p sops --run "sops updatekeys secrets.yaml"
+#        cd modules/server/step-ca &&      sudo nix-shell -p sops --run "sops updatekeys secrets.yaml"
+#   4. Swap the private key into both keyrings:
+#        sudo nix-shell -p age --run "cat /tmp/new-sops.key"
+#        # -> replace the AGE-SECRET-KEY line in /var/lib/sops-nix/keys.txt
+#        #    and /root/.config/sops/age/keys.txt
+#   5. sudo nixos-rebuild switch && rm /tmp/new-sops.key
+
 keys:
-  - &host_key age169cqlzrfhr549nea59v0z9dgarkmx3spa2r82q77y2ecttnhlfkswnkr22
+  - &sops_key age1cp66msfm2h2dkqf5h0vr67y93q3hhrv2pq578dmql5rnduf4sufsxvzuty
 creation_rules:
-  - age: *host_key
+  - age: *sops_key
