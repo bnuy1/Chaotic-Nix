@@ -7,14 +7,15 @@
 
 let
   sshPort = vars.sshPort or 22;
-  vpnEnable = ((vars.serverModules or { }).vpn or null) == true;
+  vpnServerEnable = ((vars.serverModules or { }).vpn-server or null) == true;
 in
 {
   # Disable wait-online service for faster boot
   systemd.services.NetworkManager-wait-online.enable = false;
 
-  # Set IPv4 forwarding explicitly to avoid NM race condition (needed for VPN routing)
-  boot.kernel.sysctl = lib.optionalAttrs vpnEnable { "net.ipv4.ip_forward" = 1; };
+  # Set IPv4 forwarding explicitly to avoid NM race condition (needed for the
+  # headscale exit-node / subnet router on the vpn-server host)
+  boot.kernel.sysctl = lib.optionalAttrs vpnServerEnable { "net.ipv4.ip_forward" = 1; };
 
   # Fixes networking related permissions problems
   users.groups.netdev = { };
@@ -97,7 +98,9 @@ in
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;
       PermitRootLogin = "no";
-      AllowUsers = map (user: user.name) vars.users;
+      # vars.users authenticate with their keys; the fallback `admin` account
+      # exists on every host and may also log in (key auth).
+      AllowUsers = map (user: user.name) vars.users ++ [ "admin" ];
       MaxAuthTries = 3;
       MaxSessions = 4;
       ClientAliveInterval = 300;

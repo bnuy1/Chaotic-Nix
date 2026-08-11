@@ -67,6 +67,10 @@
   # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = null;
 
+  # Trust the bnuy LAN CA root (this host runs step-ca) so clients accept
+  # step-ca-issued leaf certs.
+  trustBnuyCA = true;
+
   # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
   editor = "nvim";
 
@@ -197,5 +201,7 @@
     remoteUnlock = true;
     netboot = null;
     mailcow = true;
+    # headscale server: control plane + exit node + subnet router (this host)
+    vpn-server = true;
   };
 }

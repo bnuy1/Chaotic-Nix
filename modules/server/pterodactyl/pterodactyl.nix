@@ -683,5 +683,8 @@ in
       owner = "pterodactyl";
       mode = "0400";
     };
+
+    # Pin the tunnel origin to local nginx instead of the CF edge (loop).
+    networking.extraHosts = lib.mkIf cfg.cloudflared.enable "127.0.0.1 ${cfg.domain}";
   };
 }

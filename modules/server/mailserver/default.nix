@@ -17,7 +17,13 @@
 # DNS to create (external, done by hand): A mail/autodiscover/autoconfig,
 # MX, SPF, DKIM (printed by mailcow-provision), DMARC, PTR. See the module
 # README notes in mailcow.conf below.
-{ config, lib, pkgs, mailcowSrc, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  mailcowSrc,
+  ...
+}:
 
 let
   cfg = config.services.mailcow;
@@ -32,11 +38,13 @@ let
   leKey = "${acmeDir}/key.pem";
 
   # autodiscover/autoconfig/mta-sts for every mail domain.
-  sanNames = lib.concatLists (map (d: [
-    "autodiscover.${d}"
-    "autoconfig.${d}"
-    "mta-sts.${d}"
-  ]) cfg.mailDomains);
+  sanNames = lib.concatLists (
+    map (d: [
+      "autodiscover.${d}"
+      "autoconfig.${d}"
+      "mta-sts.${d}"
+    ]) cfg.mailDomains
+  );
   aliases = lib.remove null (lib.unique (sanNames ++ cfg.mailDomains));
 
   project = cfg.project;
@@ -84,17 +92,34 @@ in
       description = "Docker compose project name (volume/container prefix)";
     };
     mailboxes = lib.mkOption {
-      type = lib.types.listOf (lib.types.submodule {
-        options = {
-          address = lib.mkOption { type = lib.types.str; };
-          name = lib.mkOption { type = lib.types.str; default = ""; };
-          passwordSopsKey = lib.mkOption { type = lib.types.str; };
-          quota = lib.mkOption { type = lib.types.int; default = 10240; description = "Quota in MB"; };
-        };
-      });
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            address = lib.mkOption { type = lib.types.str; };
+            name = lib.mkOption {
+              type = lib.types.str;
+              default = "";
+            };
+            passwordSopsKey = lib.mkOption { type = lib.types.str; };
+            quota = lib.mkOption {
+              type = lib.types.int;
+              default = 10240;
+              description = "Quota in MB";
+            };
+          };
+        }
+      );
       default = [
-        { address = "bnuy@bnuy.dev"; name = "Mal"; passwordSopsKey = "mailbox_bnuy"; }
-        { address = "raina@bnuy.dev"; name = "Raina"; passwordSopsKey = "mailbox_raina"; }
+        {
+          address = "bnuy@bnuy.dev";
+          name = "Mal";
+          passwordSopsKey = "mailbox_bnuy";
+        }
+        {
+          address = "raina@bnuy.dev";
+          name = "Raina";
+          passwordSopsKey = "mailbox_raina";
+        }
       ];
       description = "Mailboxes created by mailcow-provision on first boot";
     };
@@ -122,7 +147,10 @@ in
       # 0750 + nginx in the mailcow group: host nginx reads the TLS certs from
       # data/assets/ssl (default system-user home is 0700, untraversable).
       homeMode = "0750";
-      extraGroups = [ "docker" "nginx" ];
+      extraGroups = [
+        "docker"
+        "nginx"
+      ];
     };
 
     # Host nginx needs to traverse the mailcow home to read data/assets/ssl.
@@ -152,7 +180,11 @@ in
         sslCertificateKey = "${sslDir}/key.pem";
         http2 = true;
         listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
+          {
+            addr = "0.0.0.0";
+            port = 443;
+            ssl = true;
+          }
         ];
         locations."/" = {
           proxyPass = "https://127.0.0.1:${toString cfg.httpsPort}";
@@ -171,7 +203,10 @@ in
         serverName = cfg.domain;
         serverAliases = aliases;
         listen = [
-          { addr = "0.0.0.0"; port = 80; }
+          {
+            addr = "0.0.0.0";
+            port = 80;
+          }
         ];
         useACMEHost = cfg.domain;
         locations."/" = {
@@ -195,10 +230,14 @@ in
     };
 
     networking.firewall.allowedTCPPorts = [
-      25 465 587 # smtp / smtps / submission
-      110 143    # pop3 / imap
-      993 995    # imaps / pop3s
-      4190       # manage sieve
+      25
+      465
+      587 # smtp / smtps / submission
+      110
+      143 # pop3 / imap
+      993
+      995 # imaps / pop3s
+      4190 # manage sieve
     ];
 
     # ---------------------------------------------------------------------
@@ -206,24 +245,66 @@ in
     # sops.defaultSopsFile for this host).
     # ---------------------------------------------------------------------
     sops.secrets = {
-      "mailcow/dbpass" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/dbroot" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/redispass" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/api_key" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/sogo_key" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/admin_password" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/watchdog_webhook" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-      "mailcow/backup_password" = { sopsFile = ./secrets.yaml; owner = "mailcow"; mode = "0400"; };
-    } // lib.listToAttrs (map (mb: lib.nameValuePair "mailcow/${mb.passwordSopsKey}" {
-      sopsFile = ./secrets.yaml;
-      owner = "mailcow";
-      mode = "0400";
-    }) cfg.mailboxes) // {
+      "mailcow/dbpass" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/dbroot" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/redispass" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/api_key" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/sogo_key" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/admin_password" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/watchdog_webhook" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+      "mailcow/backup_password" = {
+        sopsFile = ./secrets.yaml;
+        owner = "mailcow";
+        mode = "0400";
+      };
+    }
+    // lib.listToAttrs (
+      map (
+        mb:
+        lib.nameValuePair "mailcow/${mb.passwordSopsKey}" {
+          sopsFile = ./secrets.yaml;
+          owner = "mailcow";
+          mode = "0400";
+        }
+      ) cfg.mailboxes
+    )
+    // {
       # mailcow-certs reads the step-ca password for the offline CA fallback.
       # owner must stay root: systemd LoadCredentials (how step-ca receives it)
       # only loads files owned by root or the service user. group=mailcow +
       # 0440 gives the mailcow user read access via group membership.
-      "step-ca/password" = { group = "mailcow"; mode = "0440"; };
+      "step-ca/password" = {
+        group = "mailcow";
+        mode = "0440";
+      };
     };
 
     # Same keyring the pterodactyl module uses; keep set in case it is disabled.
@@ -244,7 +325,10 @@ in
         User = "mailcow";
         Group = "mailcow";
       };
-      path = [ pkgs.openssl pkgs.coreutils ];
+      path = [
+        pkgs.openssl
+        pkgs.coreutils
+      ];
       script = ''
         mkdir -p ${sslDir}
         # dhparams.pem is generated once by mailcow's generate_config.sh
@@ -259,7 +343,9 @@ in
             -keyout ${sslDir}/key.pem -out ${sslDir}/cert.pem \
             -days 365 -nodes -sha256 \
             -subj "/CN=${cfg.domain}" \
-            -addext "subjectAltName=DNS:${cfg.domain},${lib.concatMapStringsSep "," (s: "DNS:${s}") sanNames}"
+            -addext "subjectAltName=DNS:${cfg.domain},${
+              lib.concatMapStringsSep "," (s: "DNS:${s}") sanNames
+            }"
           chmod 644 ${sslDir}/cert.pem ${sslDir}/key.pem
         fi
       '';
@@ -270,10 +356,22 @@ in
     # ---------------------------------------------------------------------
     systemd.services.mailcow-setup = {
       description = "Mailcow: install repo, config, start stack";
-      after = [ "docker.service" "sops-nix.service" "mailcow-seed.service" ];
-      wants = [ "docker.service" "sops-nix.service" ];
+      after = [
+        "docker.service"
+        "sops-nix.service"
+        "mailcow-seed.service"
+      ];
+      wants = [
+        "docker.service"
+        "sops-nix.service"
+      ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.docker pkgs.rsync pkgs.openssl pkgs.coreutils ];
+      path = [
+        pkgs.docker
+        pkgs.rsync
+        pkgs.openssl
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -410,10 +508,22 @@ in
     # ---------------------------------------------------------------------
     systemd.services.mailcow-certs = {
       description = "Mailcow: sync TLS cert from host (LE, step-ca fallback)";
-      after = [ "mailcow-setup.service" "acme-${cfg.domain}.service" "sops-nix.service" ];
-      wants = [ "mailcow-setup.service" "sops-nix.service" ];
+      after = [
+        "mailcow-setup.service"
+        "acme-${cfg.domain}.service"
+        "sops-nix.service"
+      ];
+      wants = [
+        "mailcow-setup.service"
+        "sops-nix.service"
+      ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.docker pkgs.openssl pkgs.step-cli pkgs.coreutils ];
+      path = [
+        pkgs.docker
+        pkgs.openssl
+        pkgs.step-cli
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -453,7 +563,9 @@ in
             --root ${../step-ca/root_ca.crt} \
             --provisioner admin \
             --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
-            ${lib.concatMapStringsSep " " (s: "--san ${s}") ([ cfg.domain ] ++ sanNames ++ cfg.mailDomains)} \
+            ${
+              lib.concatMapStringsSep " " (s: "--san ${s}") ([ cfg.domain ] ++ sanNames ++ cfg.mailDomains)
+            } \
             ${cfg.domain} /tmp/mailcow-cert.pem /tmp/mailcow-key.pem
           SRC_CERT=/tmp/mailcow-cert.pem
           SRC_KEY=/tmp/mailcow-key.pem
@@ -489,10 +601,22 @@ in
     # ---------------------------------------------------------------------
     systemd.services.mailcow-provision = {
       description = "Mailcow: provision admin, domain, mailboxes";
-      after = [ "mailcow-setup.service" "sops-nix.service" ];
-      wants = [ "mailcow-setup.service" "sops-nix.service" ];
+      after = [
+        "mailcow-setup.service"
+        "sops-nix.service"
+      ];
+      wants = [
+        "mailcow-setup.service"
+        "sops-nix.service"
+      ];
       wantedBy = [ "multi-user.target" ];
-      path = [ pkgs.docker pkgs.curl pkgs.jq pkgs.gnused pkgs.coreutils ];
+      path = [
+        pkgs.docker
+        pkgs.curl
+        pkgs.jq
+        pkgs.gnused
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -560,15 +684,26 @@ in
     # ---------------------------------------------------------------------
     systemd.services.mailcow-backup = {
       description = "Mailcow: restic backup";
-      after = [ "mailcow-setup.service" "sops-nix.service" ];
+      after = [
+        "mailcow-setup.service"
+        "sops-nix.service"
+      ];
       wants = [ "sops-nix.service" ];
-      path = [ pkgs.restic pkgs.docker pkgs.gzip pkgs.coreutils ];
+      path = [
+        pkgs.restic
+        pkgs.docker
+        pkgs.gzip
+        pkgs.coreutils
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
         WorkingDirectory = cfg.dataDir;
         TimeoutStartSec = 0;
-        ReadWritePaths = [ cfg.dataDir "/var/backups" ];
+        ReadWritePaths = [
+          cfg.dataDir
+          "/var/backups"
+        ];
         PrivateTmp = true;
         NoNewPrivileges = true;
       };
@@ -605,7 +740,7 @@ in
       description = "Mailcow: nightly backup";
       wantedBy = [ "timers.target" ];
       timerConfig = {
-        OnCalendar = "*-*-* 03:00:00";
+        OnCalendar = "*-*-* 12:00:00";
         Persistent = true;
       };
     };

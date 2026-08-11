@@ -55,6 +55,41 @@
     interface = "enp0s31f6";
   };
 
+  # Headscale VPN server (control plane + exit node + subnet router).
+  # Enabled via serverModules.vpn-server.
+  #  - Public FQDN vpn.bnuy.dev -> Cloudflare Tunnel -> nginx (LE cert) ->
+  #    headscale on 127.0.0.1:8080. DERP relay + STUN ride the same vhost.
+  #  - This host is also a tailscale subnet router advertising both LAN
+  #    subnets, so remote staff/guest/admin devices reach the panel/mail at
+  #    their real LAN IPs (192.168.2.3).
+  #  - SOPS secrets (modules/server/vpn/secrets.yaml) MUST exist first:
+  #      vpn/cloudflared_token      (dashboard tunnel token)
+  #      vpn/admin_preauthkey       (headscale preauthkeys create --user admin
+  #                                  --reusable --tags tag:admin)
+  services.vpn-server = {
+    # 8080 is taken by the pterodactyl Wings API; the nginx vhost proxies to
+    # this port automatically.
+    port = 8081;
+    tunnel = {
+      domain = "vpn.bnuy.dev";
+      # Dedicated cloudflared for vpn.bnuy.dev (own tunnel, own token in
+      # sops vpn/cloudflared_token). Ingress is configured in the Zero Trust
+      # dashboard for that tunnel.
+      cloudflared = true;
+    };
+    acl = {
+      adminSubnets = [ "192.168.1.0/24" "192.168.2.0/24" ];
+      serviceHost = "192.168.2.3";
+      staffPorts = [ 443 993 995 465 587 4190 ];
+      guestPorts = [ 443 ];
+    };
+    subnetRouter = {
+      enable = true;
+      routes = [ "192.168.1.0/24" "192.168.2.0/24" ];
+      hostname = "singularity";
+    };
+  };
+
   # Remote unlock via initrd SSH. Enabled via serverModules.remoteUnlock.
   services.remoteUnlock = {
     enable = true;

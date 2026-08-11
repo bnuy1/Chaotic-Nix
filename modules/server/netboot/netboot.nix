@@ -55,30 +55,34 @@ let
     '';
   });
 
-  wgKeys = if builtins.pathExists ./wg-keys.nix then import ./wg-keys.nix else null;
-
-  fallbackHostWgKeys = pkgs.runCommand "netboot-host-wg-keys" {
-    nativeBuildInputs = [ pkgs.wireguard-tools ];
-  } ''
-    mkdir -p $out
-    wg genkey | tee $out/private | wg pubkey > $out/public
-  '';
-
-  fallbackClientWgKeys = pkgs.runCommand "netboot-client-wg-keys" {
-    nativeBuildInputs = [ pkgs.wireguard-tools ];
-  } ''
-    mkdir -p $out
-    wg genkey | tee $out/private | wg pubkey > $out/public
-  '';
-
-  hostWgPublicKey = if wgKeys != null then wgKeys.hostPublicKey
-    else lib.strings.trim (builtins.readFile "${fallbackHostWgKeys}/public");
-  clientWgPublicKey = if wgKeys != null then wgKeys.clientPublicKey
-    else lib.strings.trim (builtins.readFile "${fallbackClientWgKeys}/public");
-  hostPrivateKeyFile = if wgKeys != null then wgKeys.hostPrivateKeyFile
-    else "${fallbackHostWgKeys}/private";
-  clientPrivateKeyFile = if wgKeys != null then wgKeys.clientPrivateKeyFile
-    else "${fallbackClientWgKeys}/private";
+  # WireGuard is being replaced entirely by headscale. The netboot host will
+  # join the tailnet as a headscale client (services.vpn) and be reachable only
+  # by bnuy per the tailnet ACLs. All WireGuard integration below is commented
+  # out until that headscale client is wired into the netboot host's config.
+  # wgKeys = if builtins.pathExists ./wg-keys.nix then import ./wg-keys.nix else null;
+  #
+  # fallbackHostWgKeys = pkgs.runCommand "netboot-host-wg-keys" {
+  #   nativeBuildInputs = [ pkgs.wireguard-tools ];
+  # } ''
+  #   mkdir -p $out
+  #   wg genkey | tee $out/private | wg pubkey > $out/public
+  # '';
+  #
+  # fallbackClientWgKeys = pkgs.runCommand "netboot-client-wg-keys" {
+  #   nativeBuildInputs = [ pkgs.wireguard-tools ];
+  # } ''
+  #   mkdir -p $out
+  #   wg genkey | tee $out/private | wg pubkey > $out/public
+  # '';
+  #
+  # hostWgPublicKey = if wgKeys != null then wgKeys.hostPublicKey
+  #   else lib.strings.trim (builtins.readFile "${fallbackHostWgKeys}/public");
+  # clientWgPublicKey = if wgKeys != null then wgKeys.clientPublicKey
+  #   else lib.strings.trim (builtins.readFile "${fallbackClientWgKeys}/public");
+  # hostPrivateKeyFile = if wgKeys != null then wgKeys.hostPrivateKeyFile
+  #   else "${fallbackHostWgKeys}/private";
+  # clientPrivateKeyFile = if wgKeys != null then wgKeys.clientPrivateKeyFile
+  #   else "${fallbackClientWgKeys}/private";
 
   evalConfig = import "${toString pkgs.path}/nixos/lib/eval-config.nix";
   netbootConfig = evalConfig {
@@ -92,22 +96,24 @@ let
         };
         users.users.root.openssh.authorizedKeys.keys = netbootKeys;
 
-        networking.wireguard.interfaces.wg0 = {
-          ips = [ "10.0.0.2/24" ];
-          privateKeyFile = clientPrivateKeyFile;
-          peers = [
-            {
-              publicKey = hostWgPublicKey;
-              endpoint = "${cfg.listenIp}:51820";
-              allowedIPs = [ "10.0.0.0/24" ];
-              persistentKeepalive = 25;
-            }
-          ];
-        };
+        # WireGuard access to the netboot host is being replaced by headscale;
+        # the kexec image will join the tailnet via a headscale client instead.
+        # networking.wireguard.interfaces.wg0 = {
+        #   ips = [ "10.0.0.2/24" ];
+        #   privateKeyFile = clientPrivateKeyFile;
+        #   peers = [
+        #     {
+        #       publicKey = hostWgPublicKey;
+        #       endpoint = "${cfg.listenIp}:51820";
+        #       allowedIPs = [ "10.0.0.0/24" ];
+        #       persistentKeepalive = 25;
+        #     }
+        #   ];
+        # };
 
         environment.systemPackages = with pkgs; [
           neovim
-          wireguard-tools
+          # wireguard-tools
           curl
           wget
           git
@@ -140,7 +146,7 @@ let
     item --gap --
     item --gap --
     item --gap --
-    item --key n nixos    [n] NixOS Kexec (SSH + WireGuard VPN)
+    item --key n nixos    [n] NixOS Kexec (SSH)
     item --key i isos     [i] Boot ISO from /srv/iso/
     item --key u sysutils [u] Sysutils (hardware / recovery / antivirus)
     item --gap --     --------------------------------
@@ -365,22 +371,25 @@ in
       };
     };
 
-    services.vpn = {
-      enable = true;
-      interface = "wg0";
-      listenPort = 51820;
-      host = {
-        address = "10.0.0.1/24";
-        privateKeyFile = hostPrivateKeyFile;
-      };
-      peers = [
-        {
-          publicKey = clientWgPublicKey;
-          allowedIPs = [ "10.0.0.2/32" ];
-          persistentKeepalive = 25;
-        }
-      ];
-    };
+    # WireGuard server for the netboot host: replaced by headscale (the netboot
+    # host becomes a tailnet client reachable only by bnuy). Commented out until
+    # the headscale client module is enabled on this host (services.vpn).
+    # services.vpn = {
+    #   enable = true;
+    #   interface = "wg0";
+    #   listenPort = 51820;
+    #   host = {
+    #     address = "10.0.0.1/24";
+    #     privateKeyFile = hostPrivateKeyFile;
+    #   };
+    #   peers = [
+    #     {
+    #       publicKey = clientWgPublicKey;
+    #       allowedIPs = [ "10.0.0.2/32" ];
+    #       persistentKeepalive = 25;
+    #     }
+    #   ];
+    # };
 
     systemd.tmpfiles.rules = [
       "d ${cfg.tftpRoot} 0755 root root -"

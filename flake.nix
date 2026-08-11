@@ -65,6 +65,15 @@
       flake = false;
     };
 
+    # Self-contained headscale VPN module. A local path flake; it follows this
+    # nixpkgs so the headscale package version is pinned by the main
+    # flake.lock's nixpkgs rev (headscale ships in nixpkgs). Its
+    # nixosModules.headscale is imported by modules/server/default.nix.
+    vpn = {
+      url = "path:./modules/server/vpn";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =

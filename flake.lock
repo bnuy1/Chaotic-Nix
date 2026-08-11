@@ -385,7 +385,8 @@
         "silentSDDM": "silentSDDM",
         "sops-nix": "sops-nix",
         "spicetify-nix": "spicetify-nix",
-        "stylix": "stylix"
+        "stylix": "stylix",
+        "vpn": "vpn"
       }
     },
     "rounded-polygon": {
@@ -629,6 +630,22 @@
         "repo": "base16-zed",
         "type": "github"
       }
+    },
+    "vpn": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./modules/server/vpn",
+        "type": "path"
+      },
+      "original": {
+        "path": "./modules/server/vpn",
+        "type": "path"
+      },
+      "parent": []
     }
   },
   "root": "root",

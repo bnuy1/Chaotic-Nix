@@ -112,6 +112,9 @@
   # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = "librewolf";
 
+  # Trust the bnuy LAN CA root so browsers accept step-ca-issued leaf certs.
+  trustBnuyCA = true;
+
   # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
   editor = "nvim";
 
@@ -190,7 +193,8 @@
   # true = enabled with default config, attrset = enabled with custom config, null = not imported
   serverModules = {
     pterodactyl = null;
-    vpn = null;
+    # headscale client: join the bnuy tailnet, egress through singularity
+    vpn = true;
     technitium = null;
     # Documents sync (phone <-> antimatter), plaintext + bidirectional.
     # The folder is declared here; add the phone device (with its full device

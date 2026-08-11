@@ -110,6 +110,10 @@
   # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = "firefox";
 
+  # Trust the bnuy LAN CA root (modules/server/step-ca/root_ca.crt) in the
+  # system store so browsers/clients accept step-ca-issued leaf certs.
+  trustBnuyCA = false; # (default: false)
+
   # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
   editor = "nvim";
 
