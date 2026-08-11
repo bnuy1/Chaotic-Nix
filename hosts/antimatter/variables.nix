@@ -190,29 +190,21 @@
   };
 
   # -- Server Modules ---------------------------------------------------------
-  # true = enabled with default config, attrset = enabled with custom config, null = not imported
+  # Identical options + comments on every host; only the values differ.
+  #   null    = disabled (options stay declared; per-host config lives in default.nix)
+  #   true    = enabled with default options
+  #   attrset = enabled with those options applied to services.<name>
+  # Rule: singularity runs every server service (it's the rack server); every
+  # other device is only a headscale VPN client (services.vpn).
   serverModules = {
-    pterodactyl = null;
-    # headscale client: join the bnuy tailnet, egress through singularity
-    vpn = true;
-    technitium = null;
-    # Documents sync (phone <-> antimatter), plaintext + bidirectional.
-    # The folder is declared here; add the phone device (with its full device
-    # ID) to settings.devices and this folder's `devices` list once known.
-    # NOTE: syncthing-init re-pushes this folder on every boot, so until the
-    # phone device is declared, GUI-added folder shares get reset on reboot.
-    syncthing = {
-      settings.folders = {
-        documents = {
-          id = "documents";
-          path = "/home/bnuy/Documents";
-          devices = [ ];
-        };
-      };
-    };
-    netboot = {
-      listenIp = "192.168.2.182";
-      interface = "enp7s0";
-    };
+    pterodactyl = null;   # Pterodactyl game panel
+    step-ca = null;       # Step-CA internal certificate authority
+    vpn = true;           # headscale VPN client (join the bnuy tailnet)
+    vpn-server = null;    # headscale VPN server: control plane + exit node + subnet router
+    technitium = null;    # Technitium DNS server
+    netboot = null;       # PXE netboot server (iPXE/Kexec)
+    remoteUnlock = null;  # initrd SSH remote unlock
+    syncthing = null;     # Syncthing file sync
+    mailcow = null;       # mailcow mail server
   };
 }

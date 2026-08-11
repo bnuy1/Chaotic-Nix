@@ -24,10 +24,10 @@ let
       fs = zfsMounts.${mountpoint};
       dataset = fs.device or null;
     in
-    if dataset != null then [{
+    if dataset != null && ! builtins.elem mountpoint snapExclude then [{
       name = dataset;
       value = {
-        template = if builtins.elem mountpoint snapExclude then "none" else "default";
+        use_template = [ "default" ];
         recursive = true;
         process_children_only = true;
       };

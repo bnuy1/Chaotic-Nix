@@ -11,30 +11,11 @@ let
   hostKeys = if builtins.pathExists ./host-keys.nix then import ./host-keys.nix else [];
   netbootKeys = sshKeys ++ hostKeys;
 
-  netbootSslCert = pkgs.runCommand "netboot-ssl-cert" {
-    nativeBuildInputs = [ pkgs.openssl ];
-    listenIp = cfg.listenIp;
-    serverName = if cfg.serverName != null then cfg.serverName else "";
-  } ''
-    mkdir -p $out
-    if [ -n "$serverName" ]; then
-      openssl req -x509 -newkey rsa:4096 \
-        -keyout $out/key.pem \
-        -out $out/cert.pem \
-        -days 3650 -nodes \
-        -subj "/CN=$serverName" \
-        -addext "subjectAltName=DNS:$serverName,IP:$listenIp"
-    else
-      openssl req -x509 -newkey rsa:4096 \
-        -keyout $out/key.pem \
-        -out $out/cert.pem \
-        -days 3650 -nodes \
-        -subj "/CN=$listenIp" \
-        -addext "subjectAltName=IP:$listenIp"
-    fi
-    chmod 644 $out/cert.pem
-    chmod 640 $out/key.pem
-  '';
+  # bnuy LAN CA root (step-ca on singularity). iPXE TRUST embeds this CA so
+  # clients validate the runtime step-ca leaf cert served by netboot-https.
+  # No self-signed certs anywhere (user policy); the leaf itself is issued at
+  # runtime by the netboot-cert systemd service below.
+  netbootTrustCa = ../step-ca/root_ca.crt;
 
   ipxeBase = pkgs.ipxe.override {
     enableDefaultPlatformTargets = false;
@@ -47,8 +28,7 @@ let
 
   ipxeBoot = ipxeBase.overrideAttrs (old: {
     makeFlags = (old.makeFlags or []) ++ [
-      "CERT=${netbootSslCert}/cert.pem"
-      "TRUST=${netbootSslCert}/cert.pem"
+      "TRUST=${netbootTrustCa}"
     ];
     installPhase = (old.installPhase or "") + ''
       rm -f $out/undionly.kpxe.0
@@ -258,7 +238,13 @@ in
 
     httpsPort = lib.mkOption {
       type = lib.types.port;
-      default = 8443;
+      # NOT 8443: that port is the headscale control-plane listener on 0.0.0.0
+      # (vpn.bnuy.dev). If netboot-https bound the exact LAN IP on 8443, nginx
+      # would route every connection to it — including the phone's VPN TLS
+      # handshake via the router port-forward — and serve this cert instead of
+      # the LE one, breaking the control plane. Netboot is LAN-only, so it can
+      # take any free port.
+      default = 8445;
       description = "Port for HTTPS server (serves kernel + initrd)";
     };
 
@@ -358,8 +344,8 @@ in
         ];
         root = cfg.tftpRoot;
         addSSL = true;
-        sslCertificate = "${netbootSslCert}/cert.pem";
-        sslCertificateKey = "${netbootSslCert}/key.pem";
+        sslCertificate = "/var/lib/netboot/ssl/cert.pem";
+        sslCertificateKey = "/var/lib/netboot/ssl/key.pem";
         locations."/iso/" = {
           alias = "/srv/iso/";
           extraConfig = "autoindex on;";
@@ -400,9 +386,10 @@ in
       "d /srv/iso/sysutils/hardware 0755 root root -"
       "d /srv/iso/sysutils/recovery 0755 root root -"
       "d /srv/iso/sysutils/antivirus 0755 root root -"
+      "d /var/lib/netboot/ssl 0755 root root -"
       "L+ ${cfg.tftpRoot}/${bootFile} - - - - ${ipxeBoot}/ipxe-legacy.efi"
       "L+ ${cfg.tftpRoot}/autoexec.ipxe - - - - ${autoexecScript}"
-      "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootSslCert}/cert.pem"
+      "L+ ${cfg.tftpRoot}/ca.crt - - - - ${netbootTrustCa}"
       "L+ ${cfg.tftpRoot}/nixos/bzImage - - - - ${build.kernel}/${kernelFile}"
       "L+ ${cfg.tftpRoot}/nixos/initrd - - - - ${build.netbootRamdisk}/initrd"
       "L+ ${cfg.tftpRoot}/wrapper-initrd.gz - - - - ${wrapperInitrd}/initrd.gz"
@@ -437,6 +424,55 @@ in
 
     systemd.timers.gen-netboot-menu = {
       description = "Daily netboot ISO menu regeneration";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+      };
+    };
+
+    # Issue/refresh the LAN leaf cert from the bnuy step-ca (no LE: netboot has
+    # no public name, it is LAN-only on cfg.listenIp). Served by netboot-https,
+    # validated by iPXE via the embedded TRUST CA. Runs before nginx at boot so
+    # a clean start never serves a missing cert; refreshes daily.
+    systemd.services.netboot-cert = {
+      description = "Netboot: issue LAN TLS cert from bnuy step-ca";
+      before = [ "nginx.service" ];
+      wantedBy = [ "nginx.service" "multi-user.target" ];
+      after = [ "step-ca.service" ];
+      path = [ pkgs.step-cli pkgs.openssl pkgs.coreutils pkgs.diffutils pkgs.systemd ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        Restart = "on-failure";
+        RestartSec = 30;
+        TimeoutStartSec = 0;
+      };
+      script = ''
+        set -eu
+        if [ -f /var/lib/netboot/ssl/cert.pem ] \
+           && openssl x509 -checkend $((7 * 86400)) -noout -in /var/lib/netboot/ssl/cert.pem 2>/dev/null; then
+          exit 0
+        fi
+        mkdir -p /var/lib/netboot/ssl
+        ${pkgs.step-cli}/bin/step ca certificate \
+          --ca-url https://127.0.0.1:9000 \
+          --root ${netbootTrustCa} \
+          --provisioner admin \
+          --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
+          --san ${cfg.listenIp} \
+          --not-after=2160h \
+          netboot /var/lib/netboot/ssl/cert.pem /var/lib/netboot/ssl/key.pem
+        chmod 0644 /var/lib/netboot/ssl/cert.pem /var/lib/netboot/ssl/key.pem
+        # Reload only when nginx is already up (see vpn-headscale-cert for the
+        # deadlock this avoids at boot).
+        systemctl is-active --quiet nginx.service \
+          && systemctl reload nginx.service || true
+      '';
+    };
+
+    systemd.timers.netboot-cert = {
+      description = "Netboot: daily cert refresh";
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "daily";

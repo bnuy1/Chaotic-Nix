@@ -36,6 +36,13 @@ let
 
   domain = hs.tunnel.domain;
 
+  # LE cert stays primary for the public control plane; vpn-headscale-cert syncs
+  # it (or a bnuy step-ca fallback) to /var/lib/headscale/ssl for the vhost.
+  acmeDir = "/var/lib/acme/${domain}";
+  leCert = "${acmeDir}/fullchain.pem";
+  leKey = "${acmeDir}/key.pem";
+  vpnSslDir = "/var/lib/headscale/ssl";
+
   # Tailscale/headscale ACL policy in HuJSON (JSON is valid HuJSON).
   aclJson = builtins.toJSON {
     # headscale 0.29's policy parser only accepts owners of the form
@@ -147,13 +154,13 @@ in
       };
       staffPorts = lib.mkOption {
         type = lib.types.listOf lib.types.port;
-        default = [ 443 993 995 465 587 4190 ];
-        description = "Ports staff may reach on the service host (panel/webmail, IMAPS, SMTPS/submission, POP3S, sieve)";
+        default = [ 443 993 995 465 587 4190 53 ];
+        description = "Ports staff may reach on the service host (panel/webmail, IMAPS, SMTPS/submission, POP3S, sieve, DNS)";
       };
       guestPorts = lib.mkOption {
         type = lib.types.listOf lib.types.port;
-        default = [ 443 ];
-        description = "Ports guest may reach on the service host (view-only web access)";
+        default = [ 443 53 ];
+        description = "Ports guest may reach on the service host (view-only web access, DNS)";
       };
     };
 
@@ -179,6 +186,13 @@ in
   };
 
   config = lib.mkIf hs.enable {
+    # The headscale-admin nginx vhost binds 100.64.0.1:8444, which only exists
+    # once tailscale0 is up. Without this, nginx fails to start on a clean boot
+    # if tailscaled is logged out, and tailscaled then can't reach the control
+    # plane to re-auth (deadlock). ip_nonlocal_bind lets nginx bind the address
+    # before the interface exists; the socket comes alive when tailscale does.
+    boot.kernel.sysctl."net.ipv4.ip_nonlocal_bind" = 1;
+
     # Delegate the daemon (systemd service, user/dataDir) to nixpkgs' headscale
     # module; this module only drives it.
     services.headscale = {
@@ -188,6 +202,11 @@ in
       settings = hs.settings;
     };
 
+    # nginx reads the headscale TLS bundle from /var/lib/headscale/ssl, but the
+    # headscale service creates its data dir 0750 root:headscale which blocks
+    # the nginx user from traversing it (nginx pre-start fails on a clean boot).
+    users.groups.headscale.members = [ "nginx" ];
+
     services.vpn-server.settings = {
       server_url = "https://${domain}:${toString hs.tunnel.publicPort}";
 
@@ -195,7 +214,10 @@ in
         magic_dns = true;
         base_domain = "hs.bnuy.dev";
         override_local_dns = false;
-        nameservers.global = [ ];
+        # Push the rack DNS server (Technitium on singularity) to every tailnet
+        # client so LAN names resolve over the VPN too (reached via the
+        # advertised 192.168.2.0/24 subnet route).
+        nameservers.global = [ "192.168.2.3" ];
       };
 
       # Self-hosted relay: only our embedded DERP region, no public tailscale
@@ -229,8 +251,15 @@ in
       virtualHosts.${domain} = {
         serverName = domain;
         addSSL = true;
-        enableACME = true;
         http2 = true;
+        # Read the synced bundle (LE primary, bnuy step-ca fallback) instead of
+        # the acme dir directly, so a stale/unissued LE cert never leaves the
+        # control plane serving the nixpkgs minica self-signed fallback.
+        # No enableACME here: nixpkgs would `//`-override sslCertificate with
+        # the acme path. LE still renews via security.acme.certs.${domain};
+        # vpn-headscale-cert runs after acme-${domain}.service and reloads nginx.
+        sslCertificate = "${vpnSslDir}/cert.pem";
+        sslCertificateKey = "${vpnSslDir}/key.pem";
         listen = [
           { addr = "0.0.0.0"; port = 443; ssl = true; }
           { addr = "0.0.0.0"; port = hs.tunnel.publicPort; ssl = true; }
@@ -256,7 +285,6 @@ in
         listen = [
           { addr = "0.0.0.0"; port = 80; }
         ];
-        useACMEHost = domain;
         locations."/" = {
           proxyPass = "http://127.0.0.1:${toString hs.port}";
           proxyWebsockets = true;
@@ -314,21 +342,87 @@ in
 
     # DNS-01: the cert must stay renewable without inbound :80 (blocked by the
     # ISP and no longer tunneled since the record is DNS-only). lego verifies
-    # ownership via the Cloudflare DNS:Edit token from SOPS.
+    # ownership via the Cloudflare DNS:Edit token from SOPS. No vhost uses
+    # enableACME/useACMEHost anymore (nginx reads the synced bundle), so nixpkgs
+    # no longer wires reloadServices/group access; vpn-headscale-cert reloads
+    # nginx after renewal instead.
     security.acme.certs.${domain} = {
       dnsProvider = "cloudflare";
       credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets."vpn/cf_dns_token".path;
-      # nginx's enableACME sets a webroot; DNS-01 replaces it (mutually exclusive).
-      webroot = lib.mkForce null;
     };
+
+    # Sync the vhost cert bundle: preferred real LE cert (acme-success marker +
+    # 21-day validity) else a bnuy step-ca fallback. LE renews ~weekly; this
+    # runs after each renewal and at boot (before nginx) so the control plane
+    # never serves a self-signed fallback.
+    systemd.services.vpn-headscale-cert = {
+      description = "VPN: sync LE cert to nginx with bnuy step-ca fallback";
+      before = [ "nginx.service" ];
+      wantedBy = [ "nginx.service" "multi-user.target" ];
+      after = [ "step-ca.service" "acme-${domain}.service" ];
+      path = [ pkgs.openssl pkgs.coreutils pkgs.diffutils pkgs.step-cli pkgs.systemd ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        Restart = "on-failure";
+        RestartSec = 30;
+        TimeoutStartSec = 0;
+      };
+      script = ''
+        set -eu
+        mkdir -p ${vpnSslDir}
+        SRC_CERT=/dev/null
+        SRC_KEY=/dev/null
+        if [ -f ${acmeDir}/acme-success ] \
+           && [ -f ${leCert} ] && [ -f ${leKey} ] \
+           && openssl x509 -checkend $((21 * 86400)) -noout -in ${leCert} 2>/dev/null; then
+          SRC_CERT=${leCert}
+          SRC_KEY=${leKey}
+        else
+          ${pkgs.step-cli}/bin/step ca certificate \
+            --ca-url https://127.0.0.1:9000 \
+            --root ${../step-ca/root_ca.crt} \
+            --provisioner admin \
+            --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
+            --san ${domain} \
+            ${domain} /tmp/vpn-cert.pem /tmp/vpn-key.pem
+          SRC_CERT=/tmp/vpn-cert.pem
+          SRC_KEY=/tmp/vpn-key.pem
+        fi
+        if ! cmp -s "$SRC_CERT" ${vpnSslDir}/cert.pem \
+           || ! cmp -s "$SRC_KEY" ${vpnSslDir}/key.pem; then
+          install -m 0644 "$SRC_CERT" ${vpnSslDir}/cert.pem
+          install -m 0644 "$SRC_KEY" ${vpnSslDir}/key.pem
+          # Reload only when nginx is already up. On boot nginx starts after us,
+          # and a plain `systemctl reload` would queue a job that blocks on the
+          # pending nginx start job (which waits on this very unit) - deadlock.
+          systemctl is-active --quiet nginx.service \
+            && systemctl reload nginx.service || true
+        fi
+      '';
+    };
+
+    systemd.timers.vpn-headscale-cert = {
+      description = "VPN: daily cert sync";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+      };
+    };
+
+    systemd.tmpfiles.rules = [ "d ${vpnSslDir} 0755 root root -" ];
 
     networking.firewall.allowedTCPPorts = [ 80 443 hs.tunnel.publicPort ];
     networking.firewall.allowedUDPPorts = [ 3478 ];
 
-    # The tunnel Service URL is https://vpn.bnuy.dev:443 so cloudflared
-    # verifies the origin cert against the real hostname; pin it to localhost
-    # so it dials this nginx instead of looping back into the CF edge.
-    networking.extraHosts = lib.mkIf hs.tunnel.cloudflared "127.0.0.1 ${domain}";
+    # The tunnel Service URL is https://vpn.bnuy.dev:${toString hs.tunnel.publicPort}
+    # so cloudflared verifies the origin cert against the real hostname and
+    # dials this nginx instead of looping back into the CF edge. The 127.0.0.1
+    # pin lives in cloudflared's private /etc/hosts (cloudflared-hosts.service
+    # + BindReadOnlyPaths), NOT the global hosts file: a global pin would poison
+    # DNS for tailnet clients using this box as exit node, so their apps would
+    # dial 127.0.0.1:8443 on their own device and drop offline.
 
     sops.secrets."vpn/cloudflared_token" = lib.mkIf hs.tunnel.cloudflared {
       sopsFile = ./secrets.yaml;
@@ -342,18 +436,41 @@ in
       mode = "0400";
     };
 
+    # Writes the loopback pin for the tunnel origin into a private hosts file
+    # that only cloudflared sees (mounted over /etc/hosts below). The public
+    # hostname keeps resolving to the CF edge for everyone else.
+    systemd.services.cloudflared-hosts = lib.mkIf hs.tunnel.cloudflared {
+      description = "Write loopback hosts file for the cloudflared tunnel origin";
+      before = [ "cloudflared-headscale.service" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        printf '127.0.0.1 localhost\n::1 localhost\n127.0.0.1 ${domain}\n' > /run/cloudflared-hosts
+        chmod 0644 /run/cloudflared-hosts
+      '';
+    };
+
     systemd.services.cloudflared-headscale = lib.mkIf hs.tunnel.cloudflared {
       description = "Cloudflare Tunnel daemon (headscale)";
       after = [
         "network-online.target"
         "sops-nix.service"
         "nginx.service"
+        "cloudflared-hosts.service"
       ];
+      requires = [ "cloudflared-hosts.service" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
       serviceConfig = {
         Restart = "on-failure";
         RestartSec = 5;
+        # cloudflared only: the local origin dial must see the 127.0.0.1 pin,
+        # while exit-node DNS for tailnet clients resolves vpn.bnuy.dev to the
+        # public edge.
+        BindReadOnlyPaths = [ "/run/cloudflared-hosts:/etc/hosts" ];
         # Remotely-managed tunnel: ingress is configured in the Cloudflare
         # Zero Trust dashboard; cloudflared only needs the tunnel token.
         ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token \"$(cat ${config.sops.secrets."vpn/cloudflared_token".path})\"'";

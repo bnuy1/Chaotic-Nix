@@ -675,6 +675,10 @@ in
       '';
     };
 
+    # mailcow-backup needs /var/backups to exist before its mount namespace
+    # (ReadWritePaths) is set up, or the unit fails at NAMESPACE.
+    systemd.tmpfiles.rules = [ "d /var/backups 0755 root root -" ];
+
     # ---------------------------------------------------------------------
     # mailcow-backup: nightly restic of config, named volumes and a consistent
     # MySQL dump. Repo in /var/backups/mailcow/repo, password via sops.

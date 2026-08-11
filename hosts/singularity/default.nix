@@ -43,16 +43,27 @@
     # "pterodactyl/cloudflared_token" (under pterodactyl.cloudflared_token in
     # /etc/nixos/modules/server/pterodactyl/secrets.yaml) BEFORE rebuilding.
     cloudflared.enable = true;
+    # Old auto-DNS (resolve *.hostname.local) is superseded by the technitium
+    # .network zone, which already has a pterodactyl A record for this box.
+    configureDNS = false;
   };
 
   # Technitium DNS (serves home LAN via rack router 192.168.2.2).
   # Disabled via serverModules.technitium.
-  services.technitium.listenAddress = "192.168.2.3";
+  # Local zone "network": pterodactyl/minecraft/mailcow/technitium/vpn.network
+  # are A records for this box (provisioned declaratively by the
+  # technitium-provision service). singularity itself resolves through it too.
+  services.technitium = {
+    listenAddress = "192.168.2.3";
+    useLocally = true;
+    localDomain = "network";
+    localNames = [ "pterodactyl" "minecraft" "mailcow" "technitium" "vpn" ];
+  };
 
-  # Netboot (LAN-only, never leaves the rack). Disabled via serverModules.netboot.
+  # Netboot (LAN-only, never leaves the rack). Enabled via serverModules.netboot.
   services.netboot = {
-    listenIp = "192.168.2.4";
-    interface = "enp0s31f6";
+    listenIp = "192.168.2.3";
+    interface = "enp3s0";
   };
 
   # Headscale VPN server (control plane + exit node + subnet router).
@@ -80,8 +91,8 @@
     acl = {
       adminSubnets = [ "192.168.1.0/24" "192.168.2.0/24" ];
       serviceHost = "192.168.2.3";
-      staffPorts = [ 443 993 995 465 587 4190 ];
-      guestPorts = [ 443 ];
+      staffPorts = [ 443 993 995 465 587 4190 53 ];
+      guestPorts = [ 443 53 ];
     };
     subnetRouter = {
       enable = true;

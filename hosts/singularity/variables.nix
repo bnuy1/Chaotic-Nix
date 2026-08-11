@@ -1,6 +1,6 @@
 {
   # -- System Specific --------------------------------------------------------
-  kernel = "xanmod";
+  kernel = "stable";
 
   secureBoot = false; # Singularity motherboard does not support UEFI Secure Boot
 
@@ -191,17 +191,21 @@
   };
 
   # -- Server Modules ---------------------------------------------------------
-  # true = enabled with default config, attrset = enabled with custom config,
-  # null = disabled (options stay declared, per-host config lives in default.nix)
+  # Identical options + comments on every host; only the values differ.
+  #   null    = disabled (options stay declared; per-host config lives in default.nix)
+  #   true    = enabled with default options
+  #   attrset = enabled with those options applied to services.<name>
+  # Rule: singularity runs every server service (it's the rack server); every
+  # other device is only a headscale VPN client (services.vpn).
   serverModules = {
-    pterodactyl = true;
-    step-ca = true;
-    vpn = null;
-    technitium = null;
-    remoteUnlock = true;
-    netboot = null;
-    mailcow = true;
-    # headscale server: control plane + exit node + subnet router (this host)
-    vpn-server = true;
+    pterodactyl = true;   # Pterodactyl game panel
+    step-ca = true;       # Step-CA internal certificate authority
+    vpn = null;           # headscale VPN client (join the bnuy tailnet)
+    vpn-server = true;    # headscale VPN server: control plane + exit node + subnet router
+    technitium = true;    # Technitium DNS server
+    netboot = true;       # PXE netboot server (iPXE/Kexec)
+    remoteUnlock = true;  # initrd SSH remote unlock
+    syncthing = true;     # Syncthing file sync
+    mailcow = true;       # mailcow mail server
   };
 }

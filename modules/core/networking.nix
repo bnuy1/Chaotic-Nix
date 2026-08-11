@@ -26,19 +26,19 @@ in
       enable = true;
       wifi.backend = "iwd";
       unmanaged = [ "interface-name:wg*" ];
-      # Don't let router RA/DHCP inject DNS — use our DoT servers only.
-      # NM then leaves DNS to systemd-resolved (9.9.9.9/1.1.1.1 over TLS).
+      # Don't let router RA/DHCP inject DNS — every host resolves via the rack
+      # DNS server (Technitium on singularity at 192.168.2.3).
       # mkForce: nixpkgs resolved.nix unconditionally sets
       # dns = "systemd-resolved", which pushes per-link router DNS into resolved.
       dns = lib.mkForce "none";
     };
 
     enableIPv6 = true;
-    nameservers = [
-      "9.9.9.9"
-      "1.1.1.1"
-    ];
-    #nameservers = [ "192.168.1.99" ];
+    # Local DNS: singularity runs Technitium, which validates DNSSEC and
+    # recurses to the root servers itself (configurable for DoT/DoH upstream in
+    # its web UI). Clients therefore trust the LAN/tailnet leg as cleartext.
+    # Off-LAN hosts reach it via the tailnet subnet route (192.168.2.0/24).
+    nameservers = [ "192.168.2.3" ];
 
     # iwd is auto-enabled with sane defaults (DriverQuirks.DefaultInterface="?*")
     # when wifi.backend = "iwd". Do NOT re-add EnableNetworkConfiguration here:
@@ -51,10 +51,10 @@ in
     enable = true;
     settings = {
       Resolve = {
-        DNSSEC = "true";
+        # Technitium validates DNSSEC + recurses upstream, so clients trust the
+        # LAN/tailnet leg as cleartext (DNSSEC/DNSOverTLS stay at their nixpkgs
+        # defaults = false).
         Domains = [ "~." ];
-        # Force all DNS traffic to be encrypted using TLS
-        DNSOverTLS = "true";
         # Let avahi handle .local mDNS — avoids dual-stack warnings
         MulticastDNS = false;
       };
