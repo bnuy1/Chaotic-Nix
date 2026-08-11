@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, vars, ... }:
 
 let
   # Thin wrapper around nixpkgs' `services.step-ca` module so the LAN CA can be
@@ -17,33 +17,37 @@ let
   rootCa = ./root_ca.crt;
 in
 {
-  config = lib.mkIf cfg.enable {
-    services.step-ca = {
-      address = "127.0.0.1";
-      port = 9000;
-      settings = builtins.fromJSON (builtins.readFile ./ca.json);
-      intermediatePasswordFile = config.sops.secrets."step-ca/password".path;
-    };
+  config = lib.mkMerge [
+    {
+      # Trust the bnuy LAN root CA (via vars.trustBnuyCA) so browsers and
+      # clients validate step-ca-issued leaf certs without warnings. Always
+      # follows ./root_ca.crt, so a CA rotation is picked up on next rebuild.
+      security.pki.certificateFiles = lib.mkIf vars.trustBnuyCA [ rootCa ];
+    }
+    (lib.mkIf cfg.enable {
+      services.step-ca = {
+        address = "127.0.0.1";
+        port = 9000;
+        settings = builtins.fromJSON (builtins.readFile ./ca.json);
+        intermediatePasswordFile = config.sops.secrets."step-ca/password".path;
+      };
 
-    # Run as the static `step-ca` system user (declared by the module) instead
-    # of a DynamicUser. DynamicUser relocates the state dir to /var/lib/private
-    # (0700 root), which the service cannot traverse once the CA data exists;
-    # a static user keeps /var/lib/step-ca directly accessible and non-root.
-    systemd.services.step-ca.serviceConfig.DynamicUser = lib.mkForce false;
+      # Run as the static `step-ca` system user (declared by the module) instead
+      # of a DynamicUser. DynamicUser relocates the state dir to /var/lib/private
+      # (0700 root), which the service cannot traverse once the CA data exists;
+      # a static user keeps /var/lib/step-ca directly accessible and non-root.
+      systemd.services.step-ca.serviceConfig.DynamicUser = lib.mkForce false;
 
-    # Trust the local root CA on this host so Wings (Go) and the panel (PHP /
-    # Guzzle) validate each other's step-ca-issued certificates.
-    security.pki.certificateFiles = [ rootCa ];
+      # Tools for issuing/renewing leaf certs (e.g. for the pterodactyl node).
+      environment.systemPackages = [
+        pkgs.step-ca
+        pkgs.step-cli
+      ];
 
-    # Tools for issuing/renewing leaf certs (e.g. for the pterodactyl node).
-    environment.systemPackages = [
-      pkgs.step-ca
-      pkgs.step-cli
-    ];
-
-    sops.secrets."step-ca/password" = {
-      sopsFile = ./secrets.yaml;
-      mode = "0440";
-    };
-  };
+      sops.secrets."step-ca/password" = {
+        sopsFile = ./secrets.yaml;
+        mode = "0440";
+      };
+    })
+  ];
 }
