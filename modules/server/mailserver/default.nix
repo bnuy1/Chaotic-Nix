@@ -390,6 +390,11 @@ in
         # dirs on the next rsync (EPERM/exit 23). "+" = run as root even
         # though User=mailcow, restoring write access before the sync.
         ExecStartPre = "+${pkgs.coreutils}/bin/chown -R mailcow:mailcow ${cfg.dataDir}";
+        # php-fpm (container uid 82) must be able to write the Twig cache;
+        # mailcow's entrypoint does this chown, but the container never
+        # restarts so the setup rsync would leave it mailcow-owned. "+" runs
+        # as root (the script itself runs as User=mailcow).
+        ExecStartPost = "+${pkgs.coreutils}/bin/chown -R 82:82 ${cfg.dataDir}/data/web/templates/cache";
       };
       script = ''
         set -eu
@@ -403,6 +408,7 @@ in
         rsync -rl \
           --exclude mailcow.conf \
           --exclude .env \
+          --exclude data/web/templates/cache \
           ${mailcowSrc}/ ${cfg.dataDir}/
         # rsync -rl gives default perms (0755/0644); the first -a run may
         # have left read-only store perms on the tree. || true: some files
@@ -448,6 +454,10 @@ in
         TZ=America/New_York
         COMPOSE_PROJECT_NAME=${project}
         DOCKER_COMPOSE_VERSION=native
+        # ponytail: 172.22.1.0/24 is the compose bridge (IPV4_NETWORK). Host-side
+        # API curls arrive at the container as 172.22.1.1, not 127.0.0.1, so the
+        # loopback-only allowlist rejects them (mailcow re-seeds the api table
+        # from API_ALLOW_FROM on every php-fpm start).
         ACL_ANYONE=disallow
         MAILDIR_GC_TIME=7200
         ADDITIONAL_SAN=
@@ -479,7 +489,7 @@ in
         IPV6_NETWORK=fd4d:6169:6c63:6f77::/64
         API_KEY=$(cat ${secret "api_key"})
         API_KEY_READ_ONLY=invalid
-        API_ALLOW_FROM=127.0.0.1
+        API_ALLOW_FROM=127.0.0.1,172.22.1.0/24
         MAILDIR_SUB=Maildir
         SOGO_EXPIRE_SESSION=480
         SOGO_URL_ENCRYPTION_KEY=$(cat ${secret "sogo_key"})
@@ -631,10 +641,12 @@ in
       };
       script = ''
         set -eu
-        # Wait for the web UI to come up.
+        # Wait for the web UI. /api/v1 404s, so poll the UI root; php-fpm's
+        # entrypoint (which re-seeds the api table from API_ALLOW_FROM) runs
+        # before it serves.
         API=https://127.0.0.1:${toString cfg.httpsPort}/api/v1
         for i in $(seq 1 120); do
-          curl -sfk "$API" >/dev/null 2>&1 && break
+          curl -sfk -o /dev/null "https://127.0.0.1:${toString cfg.httpsPort}/" && break
           sleep 5
         done
 
@@ -652,19 +664,30 @@ in
         fi
 
         # Domain + DKIM keys (auto-generated on domain add).
+        # ponytail: defquota/maxquota/quota are MB in the API. 10240 MB = 10 GB
+        # (the mailbox default below), 102400 MB = 100 GB total domain quota.
+        # Covers the default mailboxes; raise if you add more/larger ones.
         curl -sfk -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-          -d '{"domain":"${toString cfg.mailDomains}","aliases":20,"mailboxes":20,"defquota":10,"maxquota":10,"quota":100,"active":1,"key_size":2048,"dkim_selector":"dkim"}' \
+          -d '{"domain":"${toString cfg.mailDomains}","aliases":20,"mailboxes":20,"defquota":10240,"maxquota":10240,"quota":102400,"active":1,"key_size":2048,"dkim_selector":"dkim"}' \
           "$API/add/domain" >/dev/null 2>&1 || true
 
         # Mailboxes.
         ${lib.concatMapStringsSep "\n" (mb: ''
           MB_PW=$(cat ${secret mb.passwordSopsKey})
           if ! curl -sfk -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
-            -d "$(jq -nc --arg user '${mb.address}' --arg local '${builtins.head (lib.splitString "@" mb.address)}' --arg domain '${lib.last (lib.splitString "@" mb.address)}' --arg name '${mb.name}' --arg quota '${toString mb.quota}' --arg password "$MB_PW" '{user_name:$user,local_part:$local,domain:$domain,name:$name,quota:$quota,password:$password,active:"1",force_pw_update:"0",tls_enforce_in:"1",tls_enforce_out:"1"}')" \
+            -d "$(jq -nc --arg user '${mb.address}' --arg local '${builtins.head (lib.splitString "@" mb.address)}' --arg domain '${lib.last (lib.splitString "@" mb.address)}' --arg name '${mb.name}' --arg quota '${toString mb.quota}' --arg password "$MB_PW" '{user_name:$user,local_part:$local,domain:$domain,name:$name,quota:$quota,password:$password,password2:$password,active:"1",force_pw_update:"0",tls_enforce_in:"1",tls_enforce_out:"1"}')" \
             "$API/add/mailbox" | grep -q '"type":"success"' 2>/dev/null; then
             : # mailbox exists or API n/a; never fatal
           fi
         '') cfg.mailboxes}
+
+        # bnuy@bnuy.dev doubles as a superadmin (same password as the mailbox,
+        # so no separate credential to track).
+        if [ "$(docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -N -e "SELECT COUNT(*) FROM admin WHERE username='bnuy@bnuy.dev'" 2>/dev/null || echo 1)" = "0" ]; then
+          BNUY_HASH=$(docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -N -e "SELECT password FROM mailbox WHERE username='bnuy@bnuy.dev'" 2>/dev/null)
+          docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" \
+            -e "INSERT INTO admin (username, password, superadmin, active) VALUES ('bnuy@bnuy.dev', '$BNUY_HASH', 1, 1);"
+        fi
 
         # Print the DKIM DNS record (selector stored in redis by mailcow).
         DKIM=$(docker exec ${project}-redis-mailcow-1 redis-cli -a "$(cat ${secret "redispass"})" --no-auth-warning HGET DKIM_PUB_KEYS ${builtins.head cfg.mailDomains} 2>/dev/null || true)

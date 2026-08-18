@@ -260,8 +260,12 @@ in
         # vpn-headscale-cert runs after acme-${domain}.service and reloads nginx.
         sslCertificate = "${vpnSslDir}/cert.pem";
         sslCertificateKey = "${vpnSslDir}/key.pem";
+        # default_server on publicPort: connects that arrive by IP with no
+        # matching server_name (e.g. LAN clients pointed at 192.168.2.3:8443)
+        # land on headscale, not the pterodactyl panel. WAN 443 is ISP-blocked,
+        # so the control plane only needs publicPort.
+        default = true;
         listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
           { addr = "0.0.0.0"; port = hs.tunnel.publicPort; ssl = true; }
         ];
         locations."/" = {
@@ -349,6 +353,10 @@ in
     security.acme.certs.${domain} = {
       dnsProvider = "cloudflare";
       credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets."vpn/cf_dns_token".path;
+      # bnuy.dev is also grey-cloud -> the same WAN IP, so its :8443 serves
+      # headscale too (the vhost is default_server on publicPort); cover it
+      # with the same cert so the browser/control-plane URL doesn't warn.
+      extraDomainNames = [ "bnuy.dev" ];
     };
 
     # Sync the vhost cert bundle: preferred real LE cert (acme-success marker +
@@ -385,6 +393,7 @@ in
             --provisioner admin \
             --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
             --san ${domain} \
+            --san bnuy.dev \
             ${domain} /tmp/vpn-cert.pem /tmp/vpn-key.pem
           SRC_CERT=/tmp/vpn-cert.pem
           SRC_KEY=/tmp/vpn-key.pem
@@ -500,11 +509,14 @@ in
       # Subnet router: enable IP forwarding on this host.
       useRoutingFeatures = "server";
       openFirewall = true;
-      # Pre-auth key must be a tagged key created with --tags tag:admin
-      # (see secrets.yaml.example) so the node owns/approves its routes.
-      authKeyFile = config.sops.secrets."vpn/admin_preauthkey".path;
-      extraUpFlags = [
-        "--login-server=https://${domain}:${toString hs.tunnel.publicPort}"
+      # No standing auth key: a reusable tagged admin key in SOPS is a standing
+      # credential, so it was removed. The node's prefs (login server, routes,
+      # exit node) persist in the state file and are re-asserted at boot by
+      # `tailscale set` below. Re-auth after a logout is a manual one-off:
+      #   sudo tailscale up --login-server=https://vpn.bnuy.dev:8443 --hostname=singularity \
+      #     --advertise-routes=192.168.1.0/24,192.168.2.0/24 --advertise-exit-node \
+      #     --authkey="$(sudo headscale preauthkeys create --user 1 --tags tag:admin --expiration 10m)"
+      extraSetFlags = [
         "--hostname=${hs.subnetRouter.hostname}"
         "--advertise-routes=${lib.concatStringsSep "," hs.subnetRouter.routes}"
         # singularity is also the tailnet exit node (staff/admin/bnuy browse the
@@ -550,11 +562,6 @@ in
     # tailscaled needs the tun device, but security.lockKernelModules disables
     # runtime module loading; load tun from the initrd (it stays loaded).
     boot.initrd.kernelModules = lib.mkIf hs.subnetRouter.enable [ "tun" ];
-
-    sops.secrets."vpn/admin_preauthkey" = lib.mkIf hs.subnetRouter.enable {
-      sopsFile = ./secrets.yaml;
-      mode = "0400";
-    };
 
     sops.secrets."vpn/headscale_admin_htpasswd" = lib.mkIf hs.enable {
       sopsFile = ./secrets.yaml;

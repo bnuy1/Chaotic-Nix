@@ -53,6 +53,12 @@ in
       default = null;
       description = "Path to a one-shot pre-auth key file (not a SOPS secret; see module header)";
     };
+
+    controlPlaneIP = lib.mkOption {
+      type = lib.types.str;
+      default = "192.168.2.3";
+      description = "LAN IP of the headscale control plane. Pinned in /etc/hosts so vpn.bnuy.dev resolves to it (the edge router has no hairpin NAT, so the public IP is unreachable from the LAN).";
+    };
   };
 
   config = lib.mkIf vpn.enable {
@@ -66,5 +72,6 @@ in
         "--exit-node=${vpn.exitNode}"
       ];
     };
+    networking.hosts."${vpn.controlPlaneIP}" = [ "vpn.bnuy.dev" ];
   };
 }

@@ -35,6 +35,12 @@ in
       description = "Hostnames to add as A records in the localDomain zone, pointing at listenAddress";
     };
 
+    splitDns = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Public domains to answer authoritatively as Primary zones pointing at listenAddress. Split DNS: LAN clients get the LAN IP for services whose WAN path the router can't hairpin back (e.g. vpn.bnuy.dev:8443). External resolvers are unaffected.";
+    };
+
     forwarders = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
@@ -50,7 +56,32 @@ in
     networkVhosts = [
       { name = "technitium"; proxyPass = "http://127.0.0.1:5380"; }
       { name = "mailcow"; proxyPass = "https://127.0.0.1:8082"; } # mailserver httpsPort
-      { name = "vpn"; proxyPass = "http://127.0.0.1:8080"; } # headscale port
+      {
+        # headscale has no web UI; serve the headscale-admin GUI (same routing
+        # as the tailnet-only vhost in ../vpn/headscale.nix, minus the tailscale
+        # bind). /api/ stays a same-origin proxy so the app's Bearer key works.
+        name = "vpn";
+        proxyPass = "http://127.0.0.1:${toString config.services.vpn-server.port}";
+        locations = {
+          "/" = { return = "302 /admin/"; };
+          "/admin" = { return = "302 /admin/"; };
+          "/admin/" = {
+            proxyPass = "http://127.0.0.1:8083";
+            basicAuthFile = config.sops.secrets."vpn/headscale_admin_htpasswd".path;
+            extraConfig = ''
+              proxy_set_header Host $host;
+            '';
+          };
+          "/api/" = {
+            proxyPass = "http://127.0.0.1:${toString config.services.vpn-server.port}";
+            extraConfig = ''
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            '';
+          };
+        };
+      }
     ];
     networkSslDir = "/var/lib/technitium/ssl";
   in lib.mkIf cfg.enable {
@@ -144,6 +175,16 @@ in
             | jq -e '.status == "ok"' >/dev/null || echo "WARN: failed to provision $name.${cfg.localDomain}"
         done
 
+        # Split DNS: a Primary zone per public domain, apex A record pointing at
+        # this box (bypasses the router's no-hairpin NAT for LAN clients).
+        for zone in ${lib.concatStringsSep " " cfg.splitDns}; do
+          curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+            "$API/api/zones/create?zone=$zone&type=Primary" || true
+          curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+            "$API/api/zones/records/add?zone=$zone&domain=$zone&type=A&ipAddress=${cfg.listenAddress}&ttl=300&overwrite=true" \
+            | jq -e '.status == "ok"' >/dev/null || echo "WARN: failed to provision split-DNS $zone"
+        done
+
         # Upstream forwarders (idempotent). UDP/TCP 53 egress is blocked on
         # this LAN, so the defaults are DNS-over-HTTPS endpoints.
         curl -s -G -X POST -H "Authorization: Bearer $TOKEN" \
@@ -210,17 +251,19 @@ in
         addSSL = true;
         sslCertificate = "${networkSslDir}/cert.pem";
         sslCertificateKey = "${networkSslDir}/key.pem";
-        locations."/" = {
-          proxyPass = v.proxyPass;
-          proxyWebsockets = true;
-          extraConfig = ''
-            proxy_set_header Host $host;
-            proxy_set_header X-Forwarded-Proto $scheme;
-          '' + lib.optionalString (v.name == "mailcow") ''
-            proxy_ssl_verify off;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Real-IP $remote_addr;
-          '';
+        locations = v.locations or {
+          "/" = {
+            proxyPass = v.proxyPass;
+            proxyWebsockets = true;
+            extraConfig = ''
+              proxy_set_header Host $host;
+              proxy_set_header X-Forwarded-Proto $scheme;
+            '' + lib.optionalString (v.name == "mailcow") ''
+              proxy_ssl_verify off;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Real-IP $remote_addr;
+            '';
+          };
         };
       };
     }) networkVhosts);

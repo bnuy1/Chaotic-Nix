@@ -172,6 +172,12 @@ in
       description = "SFTP port for Wings daemon";
     };
 
+    wingsProxyPort = lib.mkOption {
+      type = lib.types.port;
+      default = 8084;
+      description = "Nginx-proxied Wings API port (WebSocket). Browsers on a domain origin need this to avoid Private Network Access blocks on the direct 8080 port.";
+    };
+
     # Cert served on the LAN vhost (https://listenIP) AND used by Wings for its
     # own API TLS. Issued by the local step-ca; must be readable by both nginx
     # and the pterodactyl user (both in group pterodactyl).
@@ -343,45 +349,92 @@ in
       enable = true;
 
       # Public FQDN: Let's Encrypt via ACME, served on 443 AND cfg.httpsPort.
-      # This is the origin cert Cloudflare validates against (Full-strict) for
-      # the tunneled minecraft.bnuy.dev traffic.
-      virtualHosts.${cfg.domain} = {
+      # Only generated while the Cloudflare tunnel is enabled; when it's off
+      # (VPN/LAN-only panel) the domain vhosts are omitted entirely so they
+      # can't collide with the LAN IP vhost below (same name when
+      # domain==listenIP).
+      virtualHosts = lib.optionalAttrs cfg.cloudflared.enable {
+        ${cfg.domain} = {
+          root = "${cfg.dataDir}/public";
+          extraConfig = "index index.php;";
+          enableACME = true;
+          addSSL = true;
+          listen = panelSslListen;
+          locations = panelLocations;
+        };
+
+        # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
+        # http-01 challenge for the same Let's Encrypt cert (via useACMEHost).
+        "${cfg.domain}-http" = {
+          listen = [
+            { addr = "0.0.0.0"; port = 80; }
+          ];
+          useACMEHost = cfg.domain;
+          locations."/" = {
+            extraConfig = "return 301 ${httpRedirect};";
+          };
+        };
+      } // lib.optionalAttrs (!cfg.cloudflared.enable) {
+      # LAN domain vhost: reach the panel at https://${cfg.domain} with a
+      # step-ca cert covering both the domain and the listen IP.  Works
+      # alongside the IP vhost below so either URL is valid.
+      ${cfg.domain} = {
         root = "${cfg.dataDir}/public";
         extraConfig = "index index.php;";
-        enableACME = true;
         addSSL = true;
-        listen = panelSslListen;
+        sslCertificate = cfg.lanCertFile;
+        sslCertificateKey = cfg.lanCertKey;
+        listen = [
+          { addr = "0.0.0.0"; port = 443; ssl = true; }
+        ];
         locations = panelLocations;
       };
-
+      } // {
       # LAN/private vhost: reach the panel at https://${cfg.listenIP} with a
       # step-ca-issued cert (no browser warning once the root is installed).
       # Also the endpoint Wings uses for its panel connection (remote).
-      virtualHosts.${cfg.listenIP} = {
+      # 443 only: 8443's default_server is headscale, and the panel stays
+      # reachable by SNI on minecraft.bnuy.dev:8443.
+      ${cfg.listenIP} = {
         root = "${cfg.dataDir}/public";
         extraConfig = "index index.php;";
         addSSL = true;
         sslCertificate = cfg.lanCertFile;
         sslCertificateKey = cfg.lanCertKey;
         default = true;
-        listen = panelSslListen;
+        listen = [
+          { addr = "0.0.0.0"; port = 443; ssl = true; }
+        ];
         locations = panelLocations;
       };
-
-      # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
-      # http-01 challenge for the same Let's Encrypt cert (via useACMEHost).
-      virtualHosts."${cfg.domain}-http" = {
-        listen = [
-          { addr = "0.0.0.0"; port = 80; }
-        ];
-        useACMEHost = cfg.domain;
-        locations."/" = {
-          extraConfig = "return 301 ${httpRedirect};";
-        };
+      } // {
+      # Wings API proxy: serves the daemon on cfg.wingsProxyPort so browsers
+      # on a public-domain origin can reach Wings without being blocked by
+      # Private Network Access restrictions (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED).
+      "pterodactyl-wings" = {
+        listen = [ { addr = "0.0.0.0"; port = cfg.wingsProxyPort; ssl = true; } ];
+        addSSL = true;
+        sslCertificate = cfg.lanCertFile;
+        sslCertificateKey = cfg.lanCertKey;
+        extraConfig = ''
+          location / {
+            proxy_pass http://127.0.0.1:${toString cfg.wingsHttpPort};
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_read_timeout 3600s;
+            proxy_send_timeout 3600s;
+          }
+        '';
+      };
       };
     };
 
-    security.acme = {
+    security.acme = lib.mkIf cfg.cloudflared.enable {
       acceptTerms = true;
       defaults.email = cfg.email;
     };
@@ -390,8 +443,10 @@ in
       80
       443
       cfg.httpsPort
-      cfg.wingsHttpPort
+      cfg.wingsProxyPort
       cfg.wingsSftpPort
+      # Minecraft (Velocity proxy)
+      25565
     ];
     # Self-signed (no Let's Encrypt): replace the ports above with:
     #   [ 8080 cfg.panelPort cfg.wingsHttpPort cfg.wingsSftpPort ]
@@ -585,8 +640,9 @@ in
       };
       script = ''
         install -d -o pterodactyl -g pterodactyl -m 0750 "${cfg.gamesDir}"
-        # LAN TLS cert (step-ca-issued): both nginx and wings need to read it.
-        # Both are in the pterodactyl group; enforce ownership/perms each boot.
+        # LAN TLS cert (step-ca-issued): nginx proxy and the panel read it.
+        # Wings no longer uses TLS directly — the nginx proxy on
+        # cfg.wingsProxyPort handles TLS termination.
         chown root:pterodactyl ${cfg.lanCertFile} ${cfg.lanCertKey} 2>/dev/null || true
         chmod 0640 ${cfg.lanCertFile} ${cfg.lanCertKey} 2>/dev/null || true
         # If a Wings config exists (placed/downloaded from the panel or created
@@ -596,8 +652,62 @@ in
           if grep -q '^  data:' /etc/pterodactyl/config.yml; then
             sed -i 's#^  data:.*#  data: ${cfg.gamesDir}#' /etc/pterodactyl/config.yml
           fi
+          # Wings listens on HTTP — TLS is handled by the nginx proxy.
+          sed -i 's/^    cert: .*/    cert: ""/' /etc/pterodactyl/config.yml
+          sed -i 's/^    key: .*/    key: ""/' /etc/pterodactyl/config.yml
+          sed -i '/^  ssl:/,/    cert:/{s/    enabled: .*/    enabled: false/}' /etc/pterodactyl/config.yml
+          # Allow WebSocket connections from both LAN and domain origins.
+          sed -i 's/^allowed_origins: .*/allowed_origins:\n- https:\/\/pterodactyl.network\n- https:\/\/192.168.2.3/' /etc/pterodactyl/config.yml
+          # Accept forwarded headers from the nginx proxy.
+          sed -i 's/^trusted_proxies: .*/trusted_proxies:\n- 127.0.0.1/' /etc/pterodactyl/config.yml
         fi
       '';
+    };
+
+    systemd.services.pterodactyl-cert = {
+      description = "Pterodactyl: issue LAN TLS cert from step-ca";
+      wantedBy = [ "nginx.service" "wings.service" "multi-user.target" ];
+      after = [ "step-ca.service" "sops-nix.service" ];
+      before = [ "nginx.service" "wings.service" ];
+      path = [ pkgs.openssl pkgs.coreutils pkgs.diffutils pkgs.step-cli ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        Restart = "on-failure";
+        RestartSec = 30;
+        TimeoutStartSec = 0;
+      };
+      script = ''
+        set -eu
+        mkdir -p "$(dirname ${cfg.lanCertFile})"
+        ${pkgs.step-cli}/bin/step ca certificate \
+          --ca-url https://127.0.0.1:9000 \
+          --root ${../step-ca/root_ca.crt} \
+          --provisioner admin \
+          --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
+          --force \
+          --san ${cfg.listenIP} \
+          --san ${cfg.domain} \
+          ${cfg.domain} /tmp/pterodactyl-cert.pem /tmp/pterodactyl-key.pem
+        if ! cmp -s /tmp/pterodactyl-cert.pem ${cfg.lanCertFile} \
+           || ! cmp -s /tmp/pterodactyl-key.pem ${cfg.lanCertKey}; then
+          install -m 0640 /tmp/pterodactyl-cert.pem ${cfg.lanCertFile}
+          install -m 0640 /tmp/pterodactyl-key.pem ${cfg.lanCertKey}
+          chown root:pterodactyl ${cfg.lanCertFile} ${cfg.lanCertKey}
+          systemctl is-active --quiet nginx.service \
+            && systemctl reload nginx.service || true
+        fi
+      '';
+    };
+
+    systemd.timers.pterodactyl-cert = {
+      description = "Pterodactyl: renew LAN TLS cert daily";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+        Unit = "pterodactyl-cert.service";
+      };
     };
 
     systemd.services.wings = {
