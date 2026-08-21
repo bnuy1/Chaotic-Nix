@@ -10,9 +10,12 @@ let
   cfg = config.services.pterodactyl;
 
   # https://domain[:8443] — omit the port when it's the default 443
-  appUrl = "https://${cfg.domain}${lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"}";
-  httpRedirect = "https://$host${lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"}$request_uri";
-
+  appUrl = "https://${cfg.domain}${
+    lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"
+  }";
+  httpRedirect = "https://$host${
+    lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"
+  }$request_uri";
   php = pkgs.php83.withExtensions (
     { enabled, all }:
     with all;
@@ -61,9 +64,24 @@ let
 
   # SSL listen directives shared by both panel vhosts (443 + cfg.httpsPort).
   panelSslListen = [
-    { addr = "0.0.0.0"; port = 443; ssl = true; }
-    { addr = "0.0.0.0"; port = cfg.httpsPort; ssl = true; }
+    {
+      addr = "0.0.0.0";
+      port = 443;
+      ssl = true;
+    }
+    {
+      addr = "0.0.0.0";
+      port = cfg.httpsPort;
+      ssl = true;
+    }
   ];
+
+  # Playtime leaderboard hologram + auto-rank (FancyHolograms/LuckPerms).
+  # Substitutes the sops secret path into the checked-in bash script.
+  mcLeaderboardScript = pkgs.writeShellScript "mc-leaderboard" (lib.replaceStrings
+    [ "__MC_DB_PASS_FILE__" ]
+    [ config.sops.secrets."pterodactyl/mc_db_password".path ]
+    (builtins.readFile ./leaderboard-update.sh));
 in
 {
   options.services.pterodactyl = {
@@ -353,85 +371,106 @@ in
       # (VPN/LAN-only panel) the domain vhosts are omitted entirely so they
       # can't collide with the LAN IP vhost below (same name when
       # domain==listenIP).
-      virtualHosts = lib.optionalAttrs cfg.cloudflared.enable {
-        ${cfg.domain} = {
-          root = "${cfg.dataDir}/public";
-          extraConfig = "index index.php;";
-          enableACME = true;
-          addSSL = true;
-          listen = panelSslListen;
-          locations = panelLocations;
-        };
+      virtualHosts =
+        lib.optionalAttrs cfg.cloudflared.enable {
+          ${cfg.domain} = {
+            root = "${cfg.dataDir}/public";
+            extraConfig = "index index.php;";
+            enableACME = true;
+            addSSL = true;
+            listen = panelSslListen;
+            locations = panelLocations;
+          };
 
-        # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
-        # http-01 challenge for the same Let's Encrypt cert (via useACMEHost).
-        "${cfg.domain}-http" = {
-          listen = [
-            { addr = "0.0.0.0"; port = 80; }
-          ];
-          useACMEHost = cfg.domain;
-          locations."/" = {
-            extraConfig = "return 301 ${httpRedirect};";
+          # Port 80: redirect to https://$host:<httpsPort> and serve the ACME
+          # http-01 challenge for the same Let's Encrypt cert (via useACMEHost).
+          "${cfg.domain}-http" = {
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = 80;
+              }
+            ];
+            useACMEHost = cfg.domain;
+            locations."/" = {
+              extraConfig = "return 301 ${httpRedirect};";
+            };
+          };
+        }
+        // lib.optionalAttrs (!cfg.cloudflared.enable) {
+          # LAN domain vhost: reach the panel at https://${cfg.domain} with a
+          # step-ca cert covering both the domain and the listen IP.  Works
+          # alongside the IP vhost below so either URL is valid.
+          ${cfg.domain} = {
+            root = "${cfg.dataDir}/public";
+            extraConfig = "index index.php;";
+            addSSL = true;
+            sslCertificate = cfg.lanCertFile;
+            sslCertificateKey = cfg.lanCertKey;
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = 443;
+                ssl = true;
+              }
+            ];
+            locations = panelLocations;
+          };
+        }
+        // {
+          # LAN/private vhost: reach the panel at https://${cfg.listenIP} with a
+          # step-ca-issued cert (no browser warning once the root is installed).
+          # Also the endpoint Wings uses for its panel connection (remote).
+          # 443 only: 8443's default_server is headscale, and the panel stays
+          # reachable by SNI on minecraft.bnuy.dev:8443.
+          ${cfg.listenIP} = {
+            root = "${cfg.dataDir}/public";
+            extraConfig = "index index.php;";
+            addSSL = true;
+            sslCertificate = cfg.lanCertFile;
+            sslCertificateKey = cfg.lanCertKey;
+            default = true;
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = 443;
+                ssl = true;
+              }
+            ];
+            locations = panelLocations;
+          };
+        }
+        // {
+          # Wings API proxy: serves the daemon on cfg.wingsProxyPort so browsers
+          # on a public-domain origin can reach Wings without being blocked by
+          # Private Network Access restrictions (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED).
+          "pterodactyl-wings" = {
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = cfg.wingsProxyPort;
+                ssl = true;
+              }
+            ];
+            addSSL = true;
+            sslCertificate = cfg.lanCertFile;
+            sslCertificateKey = cfg.lanCertKey;
+            extraConfig = ''
+              location / {
+                proxy_pass http://127.0.0.1:${toString cfg.wingsHttpPort};
+                proxy_http_version 1.1;
+                proxy_set_header Upgrade $http_upgrade;
+                proxy_set_header Connection "upgrade";
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto $scheme;
+                proxy_read_timeout 3600s;
+                proxy_send_timeout 3600s;
+              }
+            '';
           };
         };
-      } // lib.optionalAttrs (!cfg.cloudflared.enable) {
-      # LAN domain vhost: reach the panel at https://${cfg.domain} with a
-      # step-ca cert covering both the domain and the listen IP.  Works
-      # alongside the IP vhost below so either URL is valid.
-      ${cfg.domain} = {
-        root = "${cfg.dataDir}/public";
-        extraConfig = "index index.php;";
-        addSSL = true;
-        sslCertificate = cfg.lanCertFile;
-        sslCertificateKey = cfg.lanCertKey;
-        listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
-        ];
-        locations = panelLocations;
-      };
-      } // {
-      # LAN/private vhost: reach the panel at https://${cfg.listenIP} with a
-      # step-ca-issued cert (no browser warning once the root is installed).
-      # Also the endpoint Wings uses for its panel connection (remote).
-      # 443 only: 8443's default_server is headscale, and the panel stays
-      # reachable by SNI on minecraft.bnuy.dev:8443.
-      ${cfg.listenIP} = {
-        root = "${cfg.dataDir}/public";
-        extraConfig = "index index.php;";
-        addSSL = true;
-        sslCertificate = cfg.lanCertFile;
-        sslCertificateKey = cfg.lanCertKey;
-        default = true;
-        listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
-        ];
-        locations = panelLocations;
-      };
-      } // {
-      # Wings API proxy: serves the daemon on cfg.wingsProxyPort so browsers
-      # on a public-domain origin can reach Wings without being blocked by
-      # Private Network Access restrictions (NS_ERROR_WEBSOCKET_CONNECTION_REFUSED).
-      "pterodactyl-wings" = {
-        listen = [ { addr = "0.0.0.0"; port = cfg.wingsProxyPort; ssl = true; } ];
-        addSSL = true;
-        sslCertificate = cfg.lanCertFile;
-        sslCertificateKey = cfg.lanCertKey;
-        extraConfig = ''
-          location / {
-            proxy_pass http://127.0.0.1:${toString cfg.wingsHttpPort};
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_read_timeout 3600s;
-            proxy_send_timeout 3600s;
-          }
-        '';
-      };
-      };
     };
 
     security.acme = lib.mkIf cfg.cloudflared.enable {
@@ -447,6 +486,10 @@ in
       cfg.wingsSftpPort
       # Minecraft (Velocity proxy)
       25565
+    ];
+    networking.firewall.allowedUDPPorts = [
+      # Bedrock / Geyser
+      19132
     ];
     # Self-signed (no Let's Encrypt): replace the ports above with:
     #   [ 8080 cfg.panelPort cfg.wingsHttpPort cfg.wingsSftpPort ]
@@ -546,7 +589,9 @@ in
         RestartSec = 5;
         # Remotely-managed tunnel: ingress is configured in the Cloudflare
         # Zero Trust dashboard; cloudflared only needs the tunnel token.
-        ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token \"$(cat ${config.sops.secrets."pterodactyl/cloudflared_token".path})\"'";
+        ExecStart = "${pkgs.bash}/bin/bash -c 'exec ${pkgs.cloudflared}/bin/cloudflared tunnel --no-autoupdate run --token \"$(cat ${
+          config.sops.secrets."pterodactyl/cloudflared_token".path
+        })\"'";
       };
     };
 
@@ -608,7 +653,10 @@ in
         "redis-pterodactyl.service"
       ];
       wantedBy = [ "multi-user.target" ];
-      path = [ php pkgs.mariadb ];
+      path = [
+        php
+        pkgs.mariadb
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -666,10 +714,25 @@ in
 
     systemd.services.pterodactyl-cert = {
       description = "Pterodactyl: issue LAN TLS cert from step-ca";
-      wantedBy = [ "nginx.service" "wings.service" "multi-user.target" ];
-      after = [ "step-ca.service" "sops-nix.service" ];
-      before = [ "nginx.service" "wings.service" ];
-      path = [ pkgs.openssl pkgs.coreutils pkgs.diffutils pkgs.step-cli ];
+      wantedBy = [
+        "nginx.service"
+        "wings.service"
+        "multi-user.target"
+      ];
+      after = [
+        "step-ca.service"
+        "sops-nix.service"
+      ];
+      before = [
+        "nginx.service"
+        "wings.service"
+      ];
+      path = [
+        pkgs.openssl
+        pkgs.coreutils
+        pkgs.diffutils
+        pkgs.step-cli
+      ];
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
@@ -731,7 +794,11 @@ in
         ProtectSystem = "strict";
         # /tmp must be writable: Wings writes install scripts to
         # /tmp/pterodactyl and bind-mounts them into Docker containers.
-        ReadWritePaths = [ "/etc/pterodactyl" cfg.gamesDir "/tmp" ];
+        ReadWritePaths = [
+          "/etc/pterodactyl"
+          cfg.gamesDir
+          "/tmp"
+        ];
         # systemd-managed writable dirs (created+owned on start, writable even
         # under ProtectSystem=strict):
         #   /var/lib/pterodactyl  (ssl certs, archives, backups)
@@ -792,6 +859,35 @@ in
     sops.secrets."pterodactyl/cloudflared_token" = lib.mkIf cfg.cloudflared.enable {
       owner = "pterodactyl";
       mode = "0400";
+    };
+
+    # Root password of the minecraft-db container; read by mc-leaderboard.
+    sops.secrets."pterodactyl/mc_db_password" = {
+      owner = "root";
+      mode = "0400";
+    };
+
+    systemd.services.mc-leaderboard = {
+      description = "Minecraft playtime leaderboard hologram + auto-rank";
+      after = [ "docker.service" ];
+      wants = [ "docker.service" ];
+      path = [ pkgs.docker ];
+      serviceConfig = {
+        Type = "oneshot";
+        # ponytail: rewrites holograms.yml wholesale, so holograms created
+        # in-game are clobbered on the next run. Merge YAML if a second
+        # hologram ever matters.
+      };
+      script = "${mcLeaderboardScript}";
+    };
+
+    systemd.timers.mc-leaderboard = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*:0/5";
+        Persistent = true;
+        Unit = "mc-leaderboard.service";
+      };
     };
 
     # Pin the tunnel origin to local nginx instead of the CF edge (loop).

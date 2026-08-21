@@ -195,6 +195,7 @@ in
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Authorization $http_authorization;
           '';
         };
       };
@@ -510,6 +511,33 @@ in
     };
 
     # ---------------------------------------------------------------------
+    # mailcow-dav-fix: patch sogo-auth.php inside the nginx container so
+    # admin logins are accepted for DAV. sogo-auth only accepts check_login
+    # returning "user", but superadmins get "admin" from admin_login first,
+    # which breaks CalDAV/CardDAV for superadmin accounts.
+    # ---------------------------------------------------------------------
+    systemd.services.mailcow-dav-fix = {
+      description = "Mailcow: patch sogo-auth for admin DAV access";
+      after = [ "mailcow-setup.service" ];
+      wants = [ "mailcow-setup.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ pkgs.docker pkgs.gnused ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        WorkingDirectory = cfg.dataDir;
+      };
+      script = ''
+        set -eu
+        FILE=${cfg.dataDir}/data/web/sogo-auth.php
+        # mailcow-setup rsync overwrites the file on every boot, so re-apply.
+        # sed is idempotent: no match = no change.
+        sed -i "s/if (\$login_check === 'user')/if (\$login_check === 'user' || \$login_check === 'admin')/" "$FILE"
+        docker compose -p ${project} restart php-fpm-mailcow >/dev/null 2>&1 || true
+      '';
+    };
+
+    # ---------------------------------------------------------------------
     # mailcow-certs: keep data/assets/ssl/cert.pem + key.pem fresh.
     # Preferred: host LE cert (via acme-mail.bnuy.dev). Fallback: local
     # step-ca (10-day certs) when LE is missing/expiring, so TLS stays valid
@@ -682,7 +710,12 @@ in
         '') cfg.mailboxes}
 
         # bnuy@bnuy.dev doubles as a superadmin (same password as the mailbox,
-        # so no separate credential to track).
+        # so no separate credential to track). The admin hash MUST match the
+        # mailbox password for web-UI superadmin access, but sogo-auth.php
+        # only accepts check_login returning "user" — when the admin hash
+        # matches, admin_login runs first and returns "admin", breaking
+        # CalDAV/CardDAV. A post-start systemd unit patches sogo-auth.php
+        # to also accept "admin".
         if [ "$(docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -N -e "SELECT COUNT(*) FROM admin WHERE username='bnuy@bnuy.dev'" 2>/dev/null || echo 1)" = "0" ]; then
           BNUY_HASH=$(docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" -N -e "SELECT password FROM mailbox WHERE username='bnuy@bnuy.dev'" 2>/dev/null)
           docker exec ${project}-mysql-mailcow-1 mysql -u"$DBUSER" -p"$DBPASS" "$DBNAME" \
