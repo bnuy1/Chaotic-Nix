@@ -120,13 +120,11 @@ in
     );
 
     # Kernel hardening
-    security.lockKernelModules = true;
     security.protectKernelImage = true;
     boot.kernel.sysctl = {
       "kernel.kptr_restrict" = "2"; # hide kernel addresses
       "kernel.dmesg_restrict" = "1"; # only root sees kernel logs
       "net.core.bpf_jit_harden" = "2"; # harden bpf compiler
-      "kernel.yama.ptrace_scope" = "2"; # only root can debug other procs
 
       "net.ipv4.tcp_syncookies" = "1"; # stop syn floods
       "net.ipv4.conf.all.rp_filter" = "1"; # drop spoofed packets
