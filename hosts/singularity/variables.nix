@@ -26,6 +26,7 @@
       sshKeys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJGAEcER9ynK7Fc34QKLC1441KIj4AJh6Ey6W6O6FW8S"
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFNohenCiYWNpZXB05tskL/aP3aYWYtmO8PTz2INP0Up"
+        "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPOxWpppGJ3ZCS/HPTS+kxnxdmHqL+HcRG20I197zYxO nebula@bnuy"
       ];
 
       # Home-manager
@@ -198,22 +199,31 @@
   # Rule: singularity runs every server service (it's the rack server); every
   # other device is only a headscale VPN client (services.vpn).
   serverModules = {
-    pterodactyl = { mcAdmin = true; };   # Pterodactyl game panel + bnuy-* commands
-    step-ca = true;       # Step-CA internal certificate authority
-    vpn = null;           # headscale VPN client (join the bnuy tailnet)
-    vpn-server = true;    # headscale VPN server: control plane + exit node + subnet router
-    technitium = true;    # Technitium DNS server
-    netboot = true;       # PXE netboot server (iPXE/Kexec)
-    remoteUnlock = true;  # initrd SSH remote unlock
-    syncthing = true;     # Syncthing file sync
-    mailcow = true;       # mailcow mail server
-    vaultwarden = true;   # Vaultwarden password manager (VPN-only, split DNS)
+    pterodactyl = {
+      mcAdmin = true;
+    }; # Pterodactyl game panel + bnuy-* commands
+    step-ca = true; # Step-CA internal certificate authority
+    vpn = null; # headscale VPN client (join the bnuy tailnet)
+    vpn-server = true; # headscale VPN server: control plane + exit node + subnet router
+    technitium = true; # Technitium DNS server
+    netboot = true; # PXE netboot server (iPXE/Kexec)
+    remoteUnlock = true; # initrd SSH remote unlock
+    syncthing = true; # Syncthing file sync
+    mailcow = true; # mailcow mail server
+    vaultwarden = true; # Vaultwarden password manager (VPN-only, split DNS)
     # Grey-cloud A records that must track the rotating WAN IP (see
     # hosts/singularity/default.nix history: 2026-08-23 WAN rotation took down
     # remote VPN + would have reverted mail/MC DNS).
     cloudflareDns = {
       zoneId = "8c9053cc3e915513991733b115055402";
-      records = [ "bnuy.dev" "mail.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" "password.bnuy.dev" "vpn.bnuy.dev" ];
+      records = [
+        "bnuy.dev"
+        "mail.bnuy.dev"
+        "mc.bnuy.dev"
+        "minecraft.bnuy.dev"
+        "password.bnuy.dev"
+        "vpn.bnuy.dev"
+      ];
       purgeWildcardName = "*.bnuy.dev";
     };
   };
