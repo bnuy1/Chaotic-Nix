@@ -420,7 +420,12 @@ in
       };
     };
 
-    systemd.tmpfiles.rules = [ "d ${vpnSslDir} 0755 root root -" ];
+    systemd.tmpfiles.rules = [
+      "d ${vpnSslDir} 0755 root root -"
+      "d /var/backups 0755 root root -"
+      "d /var/backups/headscale 0700 root root -"
+      "d /var/cache/restic 0700 root root -"
+    ];
 
     networking.firewall.allowedTCPPorts = [ 80 443 hs.tunnel.publicPort ];
     networking.firewall.allowedUDPPorts = [ 3478 ];
@@ -547,10 +552,12 @@ in
     };
 
     # headscale-admin: static management UI served by nginx above. Image tags
-    # track headscale majors; 0.27 is the newest build (works with 0.29's API).
+    # track headscale majors; the stable v0.27 build mis-parses headscale 0.29's
+    # apikey prefixes ("-***" suffix) so its Authorized badge never turns green
+    # - pin the dev build matching the 0.29 era until a tagged release lands.
     virtualisation.oci-containers.backend = lib.mkDefault "docker";
     virtualisation.oci-containers.containers.headscale-admin = lib.mkIf hs.enable {
-      image = "goodieshq/headscale-admin:v0.27";
+      image = "goodieshq/headscale-admin:dev";
       # Host-loopback only; nginx proxies /admin/ to it.
       ports = [ "127.0.0.1:8083:80" ];
     };
@@ -567,6 +574,71 @@ in
       sopsFile = ./secrets.yaml;
       group = "nginx";
       mode = "0440";
+    };
+
+    # Restic repo password for headscale-backup.
+    sops.secrets."vpn/backup_password" = lib.mkIf hs.enable {
+      sopsFile = ./secrets.yaml;
+      owner = "root";
+      mode = "0400";
+    };
+
+    # ---------------------------------------------------------------------
+    # Backup: nightly restic into /var/backups/headscale/repo. The sqlite DB
+    # is the tailnet identity store (nodes, users, keys) - losing it means
+    # re-enrolling every device - so a WAL-consistent staging copy first,
+    # plus the DERP/noise private keys that pair with it. The ACL policy is
+    # generated from this repo, so it needs no backup. tmpfiles rules live
+    # in the shared block above.
+    # ---------------------------------------------------------------------
+    systemd.services.headscale-backup = lib.mkIf hs.enable {
+      description = "Headscale: restic backup (sqlite db, node keys)";
+      after = [ "headscale.service" "sops-nix.service" ];
+      wants = [ "sops-nix.service" ];
+      path = [
+        pkgs.restic
+        pkgs.sqlite
+        pkgs.coreutils
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        WorkingDirectory = "/var/backups/headscale";
+        ReadWritePaths = [ "/var/backups/headscale" ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        Nice = 10;
+        # systemd gives oneshot units no $HOME/$XDG_CACHE_HOME; restic refuses
+        # to run without a cache dir, so pin one.
+        Environment = "RESTIC_CACHE_DIR=/var/cache/restic";
+      };
+      script = ''
+        set -eu
+        export RESTIC_PASSWORD=$(cat ${config.sops.secrets."vpn/backup_password".path})
+        # Bare `restic` has no default repo; point it at this module's repo.
+        export RESTIC_REPOSITORY=/var/backups/headscale/repo
+        mkdir -p repo staging
+
+        rm -rf staging/*
+        sqlite3 ${config.services.headscale.settings.database.sqlite.path} ".backup 'staging/db.sqlite'"
+        cp /var/lib/headscale/derp_server_private.key staging/
+        cp /var/lib/headscale/noise_private.key staging/
+
+        if ! restic snapshots >/dev/null 2>&1; then
+          restic init
+        fi
+        restic backup staging --tag headscale
+        restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+      '';
+    };
+
+    systemd.timers.headscale-backup = lib.mkIf hs.enable {
+      description = "Headscale: nightly backup";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*-*-* 05:30:00";
+        Persistent = true;
+      };
     };
   };
 }

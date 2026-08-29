@@ -42,7 +42,7 @@ in
 
     # iwd is auto-enabled with sane defaults (DriverQuirks.DefaultInterface="?*")
     # when wifi.backend = "iwd". Do NOT re-add EnableNetworkConfiguration here:
-    # iwd doing its own DHCP races NetworkManager (see plan.md).
+    # iwd doing its own DHCP races NetworkManager.
 
     useDHCP = false;
 

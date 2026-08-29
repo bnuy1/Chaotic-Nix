@@ -386,6 +386,7 @@
         "sops-nix": "sops-nix",
         "spicetify-nix": "spicetify-nix",
         "stylix": "stylix",
+        "vaultwarden": "vaultwarden",
         "vpn": "vpn"
       }
     },
@@ -630,6 +631,17 @@
         "repo": "base16-zed",
         "type": "github"
       }
+    },
+    "vaultwarden": {
+      "locked": {
+        "path": "./modules/server/vaultwarden",
+        "type": "path"
+      },
+      "original": {
+        "path": "./modules/server/vaultwarden",
+        "type": "path"
+      },
+      "parent": []
     },
     "vpn": {
       "inputs": {

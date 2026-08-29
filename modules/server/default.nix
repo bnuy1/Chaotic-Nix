@@ -28,6 +28,12 @@ let
     remoteUnlock = ./remote-unlock;
     syncthing = ./syncthing;
     mailcow = ./mailserver;
+    # vaultwarden is a self-contained sub-flake (modules/server/vaultwarden),
+    # tracked as the `vaultwarden` flake input: services.vaultwarden.
+    vaultwarden = inputs.vaultwarden.nixosModules.default;
+    # dynamic Cloudflare WAN-DNS reconciler (grey-cloud A records track the
+    # rotating home IP): services.cloudflareDns
+    cloudflareDns = ./cloudflare-dns;
   };
 
   # Generate a module per server module that pins services.<name>.enable:

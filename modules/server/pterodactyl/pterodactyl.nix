@@ -82,6 +82,8 @@ let
     [ "__MC_DB_PASS_FILE__" ]
     [ config.sops.secrets."pterodactyl/mc_db_password".path ]
     (builtins.readFile ./leaderboard-update.sh));
+
+  backupDir = "/var/backups/pterodactyl";
 in
 {
   options.services.pterodactyl = {
@@ -120,12 +122,6 @@ in
       type = lib.types.str;
       default = "pterodactyl";
       description = "MariaDB username";
-    };
-
-    configureDNS = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Auto-configure Technitium DNS to resolve *.hostname.local to this server";
     };
 
     listenIP = lib.mkOption {
@@ -539,6 +535,8 @@ in
       script = ''
                 DB_PASS=$(cat ${config.sops.secrets."pterodactyl/db_password".path})
                 APP_KEY=$(cat ${config.sops.secrets."pterodactyl/app_key".path})
+                SMTP_USER=$(cat ${config.sops.secrets."pterodactyl/smtp_username".path})
+                SMTP_PASS=$(cat ${config.sops.secrets."pterodactyl/smtp_password".path})
 
                 mkdir -p "${cfg.dataDir}"
                 cat > "${cfg.dataDir}/.env" << EOF
@@ -548,6 +546,17 @@ in
         APP_URL=${appUrl}
         # Self-signed (no Let's Encrypt): replace the line above with:
         # APP_URL=https://${cfg.listenIP}:${toString cfg.panelPort}
+
+        # Local-delivery mail via the host mailcow postfix submission (587,
+        # STARTTLS). Recipients are @bnuy.dev inboxes; mail never leaves the box.
+        MAIL_DRIVER=smtp
+        MAIL_HOST=mail.bnuy.dev
+        MAIL_PORT=587
+        MAIL_USERNAME=$SMTP_USER
+        MAIL_PASSWORD=$SMTP_PASS
+        MAIL_ENCRYPTION=tls
+        MAIL_FROM_ADDRESS=pterodactyl@bnuy.dev
+        MAIL_FROM_NAME=Pterodactyl
 
         DB_DATABASE=${cfg.dbName}
         DB_HOST=localhost
@@ -703,12 +712,132 @@ in
           # Wings listens on HTTP — TLS is handled by the nginx proxy.
           sed -i 's/^    cert: .*/    cert: ""/' /etc/pterodactyl/config.yml
           sed -i 's/^    key: .*/    key: ""/' /etc/pterodactyl/config.yml
-          sed -i '/^  ssl:/,/    cert:/{s/    enabled: .*/    enabled: false/}' /etc/pterodactyl/config.yml
+          if grep -q '^  ssl:' /etc/pterodactyl/config.yml; then
+            sed -i '/^  ssl:/,/    cert:/{s/    enabled: .*/    enabled: false/}' /etc/pterodactyl/config.yml
+          fi
           # Allow WebSocket connections from both LAN and domain origins.
           sed -i 's/^allowed_origins: .*/allowed_origins:\n- https:\/\/pterodactyl.network\n- https:\/\/192.168.2.3/' /etc/pterodactyl/config.yml
           # Accept forwarded headers from the nginx proxy.
           sed -i 's/^trusted_proxies: .*/trusted_proxies:\n- 127.0.0.1/' /etc/pterodactyl/config.yml
+          # Enable bind mounts for game-server backup containers.
+          if ! grep -q '/games/pterodactyl' /etc/pterodactyl/config.yml 2>/dev/null; then
+            sed -i '/^allowed_mounts:/,/^[^ -]/{/^  .*/d}' /etc/pterodactyl/config.yml
+            sed -i '/^allowed_mounts:/a\- /games/pterodactyl\n- /games/backups\n- /run/secrets/pterodactyl' /etc/pterodactyl/config.yml
+          fi
         fi
+      '';
+    };
+
+    # Set SRC_DIR on mc-backup sidecar containers so they back up the
+    # actual game data instead of the empty /data anonymous volume.
+    # Wings only sets DATA_DIR; mc-backup reads SRC_DIR (defaulting to /data).
+    systemd.services.pterodactyl-backup-srcdir = {
+      description = "Inject SRC_DIR env var for mc-backup containers";
+      after = [ "pterodactyl-migrate.service" ];
+      wants = [ "pterodactyl-migrate.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ pkgs.mariadb ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        # Register SRC_DIR on egg 8 (mc-backup sidecar egg).
+        mariadb pterodactyl -e "
+          INSERT IGNORE INTO egg_variables
+            (egg_id, name, description, env_variable, default_value,
+             user_viewable, user_editable, rules, created_at, updated_at)
+          VALUES
+            (8, 'Source Directory', 'Internal: mc-backup source path',
+             'SRC_DIR', '/data', 0, 0, NULL, NOW(), NOW());
+        " 2>/dev/null || true
+
+        VAR_ID=$(mariadb pterodactyl -N -e \
+          "SELECT id FROM egg_variables WHERE egg_id=8 AND env_variable='SRC_DIR' LIMIT 1;")
+
+        # Set SRC_DIR on each backup server, pointing at its game server's data.
+        # backup_uuid → game_uuid
+        declare -A mapping=(
+          ["04398364-2183-4ac1-9106-1736e70f245b"]="fd255e51-fba9-4a28-8b30-9b08f7959c6c"
+          ["06a2a498-9a4f-4932-9e66-a6f195b7ee19"]="88f35865-2993-4936-9bd3-fd3e345317c4"
+          ["38c04819-bb8e-41eb-af51-7fabac0a50d9"]="b4eaaa4d-2c34-46c5-ab25-6d974c108232"
+          ["c5d749a8-916b-41b0-ab87-6526ed617e9a"]="a3f70d61-fc36-48e9-9013-10a2b48a726d"
+        )
+        for buuid in "''${!mapping[@]}"; do
+          guuid="''${mapping[$buuid]}"
+          sid=$(mariadb pterodactyl -N -e \
+            "SELECT id FROM servers WHERE uuid='$buuid';" 2>/dev/null) || continue
+          [ -z "$sid" ] && continue
+          mariadb pterodactyl -e "
+            INSERT INTO server_variables
+              (server_id, variable_id, variable_value, created_at, updated_at)
+            VALUES
+              ($sid, $VAR_ID, '/games-src/$guuid', NOW(), NOW())
+            ON DUPLICATE KEY UPDATE variable_value=VALUES(variable_value);
+          "
+        done
+      '';
+    };
+
+    # Register itzg/minecraft-server variables as Pterodactyl panel options.
+    # INSERT IGNORE makes this idempotent — safe to re-run on every boot.
+    systemd.services.pterodactyl-egg-vars = {
+      description = "Register itzg egg variables in Pterodactyl panel";
+      after = [ "pterodactyl-migrate.service" ];
+      wants = [ "pterodactyl-migrate.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [ pkgs.mariadb ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        E=
+        mariadb pterodactyl -e "
+          INSERT IGNORE INTO egg_variables
+            (egg_id, name, description, env_variable, default_value,
+             user_viewable, user_editable, rules, created_at, updated_at)
+          VALUES
+            (4, 'Difficulty', 'World difficulty level', 'DIFFICULTY', 'easy', 1, 1, 'required|in:peaceful,easy,normal,hard', NOW(), NOW()),
+            (4, 'Game Mode', 'Default game mode for new players', 'MODE', 'survival', 1, 1, 'required|in:survival,creative,adventure,spectator', NOW(), NOW()),
+            (4, 'Hardcore', 'Enable hardcore mode', 'HARDCORE', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'PVP', 'Allow player vs player combat', 'PVP', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Force Default Gamemode', 'Force the default gamemode on player join', 'FORCE_GAMEMODE', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Allow Flight', 'Allow flying in survival mode', 'ALLOW_FLIGHT', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Generate Structures', 'Generate villages, temples, and other structures', 'GENERATE_STRUCTURES', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Spawn Animals', 'Allow animal spawning', 'SPAWN_ANIMALS', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Spawn Monsters', 'Allow monster spawning', 'SPAWN_MONSTERS', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Spawn NPCs', 'Allow villager spawning', 'SPAWN_NPCS', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Command Blocks', 'Enable command blocks', 'ENABLE_COMMAND_BLOCK', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'World Seed', 'World generation seed (leave empty for random)', 'SEED', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'World Save Name', 'Name of the world save folder', 'LEVEL', 'world', 1, 1, 'required|string|max:50', NOW(), NOW()),
+            (4, 'Level Type', 'World generation type (default, flat, largebiomes, amplified)', 'LEVEL_TYPE', 'default', 1, 1, 'required|string|max:20', NOW(), NOW()),
+            (4, 'Spawn Protection', 'Spawn protection radius in blocks (0 to disable)', 'SPAWN_PROTECTION', '16', 1, 1, 'required|numeric|min:0|max:1000', NOW(), NOW()),
+            (4, 'Max World Size', 'Maximum world radius in blocks', 'MAX_WORLD_SIZE', '29999984', 1, 1, 'required|numeric|min:1', NOW(), NOW()),
+            (4, 'View Distance', 'Server view distance (3-32 chunks)', 'VIEW_DISTANCE', '10', 1, 1, 'required|numeric|min:2|max:32', NOW(), NOW()),
+            (4, 'Simulation Distance', 'Simulation distance (3-32 chunks)', 'SIMULATION_DISTANCE', '10', 1, 1, 'required|numeric|min:2|max:32', NOW(), NOW()),
+            (4, 'Player Idle Timeout', 'Kick idle players after N minutes (0 to disable)', 'PLAYER_IDLE_TIMEOUT', '0', 1, 1, 'required|numeric|min:0', NOW(), NOW()),
+            (4, 'Watchdog Timeout', 'max-tick-time watchdog (-1 disables, required for autopause)', 'MAX_TICK_TIME', '-1', 0, 0, 'required|numeric', NOW(), NOW()),
+            (4, 'Pause When Empty', 'Seconds before pausing when empty (1.21.2+, 0 to disable)', 'PAUSE_WHEN_EMPTY_SECONDS', '0', 1, 1, 'required|numeric|min:0', NOW(), NOW()),
+            (4, 'Legacy Autopause', 'Enable itzg autopause for pre-1.21.2 versions', 'ENABLE_AUTOPAUSE', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Autopause Disconnect Timeout', 'Seconds before pausing after last disconnect', 'AUTOPAUSE_TIMEOUT_EST', '3600', 1, 1, 'required|numeric|min:1', NOW(), NOW()),
+            (4, 'Autopause Initial Timeout', 'Seconds before pausing on fresh start', 'AUTOPAUSE_TIMEOUT_INIT', '600', 1, 1, 'required|numeric|min:1', NOW(), NOW()),
+            (4, 'Autopause Knock Timeout', 'Seconds before pausing after port knock', 'AUTOPAUSE_TIMEOUT_KN', '120', 1, 1, 'required|numeric|min:1', NOW(), NOW()),
+            (4, 'Resource Pack URL', 'URL to a resource pack to send to clients', 'RESOURCE_PACK', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'Resource Pack SHA1', 'SHA1 hash of the resource pack', 'RESOURCE_PACK_SHA1', '$E', 1, 1, 'nullable|string|max:40', NOW(), NOW()),
+            (4, 'Resource Pack Enforce', 'Force clients to use the resource pack', 'RESOURCE_PACK_ENFORCE', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Resource Pack Prompt', 'Message shown when prompting clients to use the pack', 'RESOURCE_PACK_PROMPT', '$E', 1, 1, 'nullable|string|max:256', NOW(), NOW()),
+            (4, 'Enable Whitelist', 'Enable whitelist management', 'ENABLE_WHITELIST', 'false', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Whitelist', 'Comma-separated list of usernames to whitelist', 'WHITELIST', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'Operators', 'Comma-separated list of usernames to op', 'OPS', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'Aikar JVM Flags', 'Use Aikar optimized JVM garbage collection flags', 'USE_AIKAR_FLAGS', 'true', 1, 1, 'required|string|in:true,false', NOW(), NOW()),
+            (4, 'Custom JVM Options', 'Additional JVM arguments (space-delimited)', 'JVM_OPTS', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'JVM -XX Options', 'JVM -XX flags (space-delimited, precede -X options)', 'JVM_XX_OPTS', '$E', 1, 1, 'nullable|string', NOW(), NOW()),
+            (4, 'Log Level', 'Root logger level', 'LOG_LEVEL', 'info', 1, 1, 'required|in:trace,debug,info,warn,error', NOW(), NOW()),
+            (4, 'Shutdown Warning Delay', 'Seconds to announce before stopping the server', 'STOP_SERVER_ANNOUNCE_DELAY', '$E', 1, 1, 'nullable|numeric', NOW(), NOW()),
+            (4, 'Shutdown Timeout', 'Seconds to wait for graceful shutdown', 'STOP_DURATION', '60', 1, 1, 'required|numeric|min:10', NOW(), NOW()),
+            (4, 'Server Icon', 'URL or path to server icon (PNG, 64x64)', 'ICON', '$E', 1, 1, 'nullable|string', NOW(), NOW());
+        " 2>/dev/null || true
       '';
     };
 
@@ -836,12 +965,6 @@ in
       };
     };
 
-    services.technitium = lib.mkIf cfg.configureDNS {
-      enable = true;
-      localDomain = "${networkingHostname}.local";
-      listenAddress = cfg.listenIP;
-    };
-
     sops.defaultSopsFile = ./secrets.yaml;
     sops.age.sshKeyPaths = [ ];
     sops.age.keyFile = "/var/lib/sops-nix/keys.txt";
@@ -856,6 +979,18 @@ in
       mode = "0440";
     };
 
+    # Mailcow submission credential (SMTP_USERNAME/SMTP_PASSWORD in panel .env).
+    # user = pterodactyl@bnuy.dev; password MUST equal mailcow/mailbox_pterodactyl.
+    sops.secrets."pterodactyl/smtp_username" = {
+      owner = "pterodactyl";
+      mode = "0440";
+    };
+
+    sops.secrets."pterodactyl/smtp_password" = {
+      owner = "pterodactyl";
+      mode = "0440";
+    };
+
     sops.secrets."pterodactyl/cloudflared_token" = lib.mkIf cfg.cloudflared.enable {
       owner = "pterodactyl";
       mode = "0400";
@@ -865,6 +1000,14 @@ in
     sops.secrets."pterodactyl/mc_db_password" = {
       owner = "root";
       mode = "0400";
+    };
+
+    # Restic repo password for pterodactyl-backup (§6: never in a password
+    # manager - it would be circular).  Mode 0444 so mc-backup containers
+    # (running as pterodactyl uid) can read it via bind mount.
+    sops.secrets."pterodactyl/backup_password" = {
+      owner = "root";
+      mode = "0444";
     };
 
     systemd.services.mc-leaderboard = {
@@ -887,6 +1030,82 @@ in
         OnCalendar = "*:0/5";
         Persistent = true;
         Unit = "mc-leaderboard.service";
+      };
+    };
+
+    # ---------------------------------------------------------------------
+    # Backup: nightly restic into this module's own repo under /var/backups
+    # (per-module repo convention). Panel DB is native MariaDB; the
+    # leaderboard DB lives in the dockerized minecraft-db container. Game
+    # server files (/games/pterodactyl) are deliberately NOT backed up here:
+    # the itzg containers run their own native restic backups.
+    # ---------------------------------------------------------------------
+    systemd.tmpfiles.rules = [
+      "d /var/backups 0755 root root -"
+      "d ${backupDir} 0700 root root -"
+      "d /var/cache/restic 0700 root root -"
+      # Game-backup repos: mc-backup containers run as uid 994 (pterodactyl)
+      # and need traverse+write on /games/backups and its per-server subdirs.
+      "d /games/backups 0755 root root -"
+      "d /games/backups/backup-velocity/repo 0777 root root -"
+      "d /games/backups/backup-survival/repo 0777 root root -"
+      "d /games/backups/backup-creative/repo 0777 root root -"
+      "d /games/backups/backup-lobby/repo 0777 root root -"
+    ];
+
+    systemd.services.pterodactyl-backup = {
+      description = "Pterodactyl: restic backup (panel DB, minecraft-db, panel dir)";
+      after = [ "mysql.service" "docker.service" "sops-nix.service" ];
+      wants = [ "docker.service" "sops-nix.service" ];
+      path = [
+        pkgs.restic
+        pkgs.gzip
+        pkgs.coreutils
+        config.services.mysql.package
+        pkgs.docker
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        WorkingDirectory = backupDir;
+        ReadWritePaths = [ backupDir ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        Nice = 10;
+        # systemd gives oneshot units no $HOME/$XDG_CACHE_HOME; restic refuses
+        # to run without a cache dir, so pin one.
+        Environment = "RESTIC_CACHE_DIR=/var/cache/restic";
+      };
+      script = ''
+        set -eu
+        export RESTIC_PASSWORD=$(cat ${config.sops.secrets."pterodactyl/backup_password".path})
+        # Bare `restic` has no default repo; point it at this module's repo.
+        export RESTIC_REPOSITORY=${backupDir}/repo
+        mkdir -p ${backupDir}/repo ${backupDir}/staging
+
+        # Panel DB: root authenticates via the local unix socket.
+        mysqldump --single-transaction --routines --triggers ${cfg.dbName} \
+          | gzip -9 > ${backupDir}/staging/panel-db.sql.gz
+        # Leaderboard DB (containerized mariadb, mailcow-style dump).
+        docker exec minecraft-db mariadb-dump \
+          --all-databases --single-transaction --routines --triggers \
+          -uroot -p"$(cat ${config.sops.secrets."pterodactyl/mc_db_password".path})" 2>/dev/null \
+          | gzip -9 > ${backupDir}/staging/minecraft-db.sql.gz
+
+        if ! restic snapshots >/dev/null 2>&1; then
+          restic init
+        fi
+        restic backup ${backupDir}/staging ${cfg.dataDir} --tag pterodactyl
+        restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+      '';
+    };
+
+    systemd.timers.pterodactyl-backup = {
+      description = "Pterodactyl: nightly backup";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*-*-* 06:00:00";
+        Persistent = true;
       };
     };
 

@@ -33,7 +33,7 @@
       minimal = false; # Skip ../home import (no common pkgs/stylix/etc)      (default: false)
       nixvimConfig = null; # Override auto {user}.nix detection               (default: null)
 
-      # User-specific packages, This was difficult to make this supports pretty much everything including dots
+      # User-specific packages
       # Dot-supported: "kdePackages.kate" and "cowsay" are bolth valid
       extraPkgs = [ ];
 
@@ -198,7 +198,7 @@
   # Rule: singularity runs every server service (it's the rack server); every
   # other device is only a headscale VPN client (services.vpn).
   serverModules = {
-    pterodactyl = true;   # Pterodactyl game panel
+    pterodactyl = { mcAdmin = true; };   # Pterodactyl game panel + bnuy-* commands
     step-ca = true;       # Step-CA internal certificate authority
     vpn = null;           # headscale VPN client (join the bnuy tailnet)
     vpn-server = true;    # headscale VPN server: control plane + exit node + subnet router
@@ -207,5 +207,14 @@
     remoteUnlock = true;  # initrd SSH remote unlock
     syncthing = true;     # Syncthing file sync
     mailcow = true;       # mailcow mail server
+    vaultwarden = true;   # Vaultwarden password manager (VPN-only, split DNS)
+    # Grey-cloud A records that must track the rotating WAN IP (see
+    # hosts/singularity/default.nix history: 2026-08-23 WAN rotation took down
+    # remote VPN + would have reverted mail/MC DNS).
+    cloudflareDns = {
+      zoneId = "8c9053cc3e915513991733b115055402";
+      records = [ "bnuy.dev" "mail.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" "password.bnuy.dev" "vpn.bnuy.dev" ];
+      purgeWildcardName = "*.bnuy.dev";
+    };
   };
 }

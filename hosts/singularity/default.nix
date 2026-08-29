@@ -23,7 +23,6 @@
   # the matching vars.serverModules entry is non-null. Values survive while the
   # service is disabled so it can be re-enabled without re-typing them.
 
-  # Pterodactyl panel (reserved 192.168.2.3). Disabled via serverModules.pterodactyl.
   # VPN/LAN-only: the Cloudflare tunnel is OFF and minecraft.bnuy.dev is a grey
   # Minecraft hostname (not the panel), so the only public surface left for
   # this box is mc/minecraft/bnuy.dev:25565 + vpn.bnuy.dev:8443 (headscale).
@@ -39,39 +38,44 @@
     # No public exposure: web UIs live behind the VPN. With this off the module
     # skips the ACME/domain vhosts entirely; only the LAN vhost is generated.
     cloudflared.enable = false;
-    # Old auto-DNS (resolve *.hostname.local) is superseded by the technitium
-    # .network zone, which already has a pterodactyl A record for this box.
-    configureDNS = false;
   };
 
   # Technitium DNS (serves home LAN via rack router 192.168.2.2).
   # Disabled via serverModules.technitium.
-  # Local zone "network": pterodactyl/minecraft/mailcow/technitium/vpn.network
+  # Local zone "network": pterodactyl/minecraft/mailcow/technitium/vpn/password.network
   # are A records for this box (provisioned declaratively by the
   # technitium-provision service). singularity itself resolves through it too.
   services.technitium = {
     listenAddress = "192.168.2.3";
     useLocally = true;
     localDomain = "network";
-    localNames = [ "pterodactyl" "minecraft" "mailcow" "technitium" "vpn" ];
+    localNames = [ "pterodactyl" "minecraft" "mailcow" "technitium" "vpn" "password" ];
     # vpn.bnuy.dev -> 192.168.2.3 for LAN clients, so the headscale control
     # URL works on WiFi despite the router's no-hairpin NAT.
-    # mc.bnuy.dev/minecraft.bnuy.dev -> 192.168.2.3 too, so LAN players can
-    # join by name. bnuy.dev itself is deliberately absent: it's a mail apex
-    # (MX/DKIM/SPF), and a local Primary zone would shadow those records.
-    splitDns = [ "vpn.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" ];
+    # mc/minecraft.bnuy.dev -> same, so LAN players can join by name.
+    # password.bnuy.dev -> same, the vaultwarden vhost is VPN/split-DNS only:
+    # there is deliberately no public Cloudflare record for it.
+    splitDns = [ "vpn.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" "password.bnuy.dev" ];
   };
 
   # Tailscale control plane + DERP are at vpn.bnuy.dev:8443. DNS resolves it
   # to the public IP, which this LAN's router can't hairpin back, so pin the
   # LAN IP in /etc/hosts for this box (tailscaled honors it).
   networking.hosts."192.168.2.3" = [ "vpn.bnuy.dev" ];
+  # Local mailcow: SMTP/IMAP clients (msmtp, vaultwarden, pterodactyl) submit on
+  # 587 to this very box. They connect via mail.bnuy.dev so the TLS cert (SAN:
+  # mail.bnuy.dev) validates, but resolve it to loopback to stay on-box.
+  networking.hosts."127.0.0.1" = [ "mail.bnuy.dev" ];
 
   # Netboot (LAN-only, never leaves the rack). Enabled via serverModules.netboot.
   services.netboot = {
     listenIp = "192.168.2.3";
     interface = "enp3s0";
   };
+
+  # TEMPORARY: first-user bootstrap (vaultwarden module header, step 1).
+  # Register at https://password.bnuy.dev, then flip back to false + rebuild.
+  services.vaultwarden.signupsAllowed = true;
 
   # Headscale VPN server (control plane + exit node + subnet router).
   # Enabled via serverModules.vpn-server.
@@ -110,58 +114,11 @@
     };
   };
 
-  # Minecraft WAN = direct grey-cloud DNS + router port-forward (free plan; the
-  # Cloudflare tunnel can't carry vanilla MC, TCP public hostnames need client
-  # cloudflared). Minecraft is non-HTTP so the edge must NOT proxy it: only the
-  # intended hosts (bnuy.dev, mc.bnuy.dev, minecraft.bnuy.dev) get DNS-only A
-  # records pointing at the home WAN IP. Explicitly NO wildcard: it would make
-  # every unconfigured subdomain (play.bnuy.dev, …) resolve to :25565. The
-  # router forwards TCP 25565 -> 192.168.2.3. This service reverts accidental
-  # re-proxy/edits on every boot.
-  systemd.services.mc-wan-dns = {
-    description = "Minecraft: ensure grey-cloud WAN DNS records";
-    after = [ "sops-nix.service" ];
-    wants = [ "sops-nix.service" ];
-    wantedBy = [ "multi-user.target" ];
-    path = [ pkgs.curl pkgs.jq ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      Restart = "on-failure";
-      RestartSec = 30;
-    };
-    script = ''
-      set -eu
-      TOKEN=$(cat ${config.sops.secrets."vpn/cf_dns_token".path})
-      ZONE=8c9053cc3e915513991733b115055402
-      ensure() {
-        local name=$1 type=$2 content=$3 proxied=$4
-        # Delete any existing record for this name (any type) so a later type
-        # switch (e.g. a test CNAME -> the grey A) can't conflict.
-        for id in $(curl -sf -H "Authorization: Bearer $TOKEN" \
-          "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?name=$name" \
-          | jq -r '.result[].id'); do
-          curl -sf -X DELETE -H "Authorization: Bearer $TOKEN" \
-            "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/$id" >/dev/null || true
-        done
-        curl -sf -X POST -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records" \
-          -d "{\"type\":\"$type\",\"name\":\"$name\",\"content\":\"$content\",\"proxied\":$proxied,\"ttl\":1}" >/dev/null
-      }
-      ensure bnuy.dev A 70.22.183.131 false
-      ensure mc.bnuy.dev A 70.22.183.131 false
-      ensure minecraft.bnuy.dev A 70.22.183.131 false
-      # No wildcard: delete it if someone re-adds it (play/vpn/etc. would
-      # otherwise all point at :25565).
-      for id in $(curl -sf -H "Authorization: Bearer $TOKEN" \
-        "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records?type=A&name=*.bnuy.dev" \
-        | jq -r '.result[].id'); do
-        curl -sf -X DELETE -H "Authorization: Bearer $TOKEN" \
-          "https://api.cloudflare.com/client/v4/zones/$ZONE/dns_records/$id" >/dev/null || true
-      done
-    '';
-  };
+  # WAN DNS (grey-cloud A records tracking the rotating home IP) moved to the
+  # cloudflareDns server module — see serverModules.cloudflareDns in
+  # variables.nix. Same reconciler logic as the old mc-wan-dns service, now
+  # reusable by any host, with its own SOPS token
+  # (modules/server/cloudflare-dns/secrets.yaml).
 
   # Remote unlock via initrd SSH. Enabled via serverModules.remoteUnlock.
   services.remoteUnlock = {
@@ -176,6 +133,54 @@
   boot.initrd.systemd.network = {
     enable = vars.initrdUnlock.enable or false;
     networks = vars.initrdUnlock.networks or {};
+  };
+
+  # ---------------------------------------------------------------------------
+  # System mail (local-only): msmtp submits to the host mailcow on 587 as the
+  # singularity@bnuy.dev mailbox. Used by ZFS ZED (drive failure / scrub done),
+  # cron and root. Recipients are @bnuy.dev inboxes; nothing leaves the box.
+  # ---------------------------------------------------------------------------
+  services.mail.sendmailSetuidWrapper.enable = true;
+
+  programs.msmtp = {
+    enable = true;
+    setSendmail = true;
+    defaults = {
+      aliases = "/etc/aliases";
+      port = 587;
+      auth = "plain";
+      tls = "on";
+      tls_starttls = "on";
+      tls_trust_file = "/etc/ssl/certs/ca-certificates.crt";
+    };
+    accounts.default = {
+      host = "mail.bnuy.dev";
+      passwordeval = "cat ${config.sops.secrets."system/msmtp".path}";
+      user = "singularity@bnuy.dev";
+      from = "singularity@bnuy.dev";
+    };
+  };
+
+  environment.etc.aliases.text = ''
+    root: singularity@bnuy.dev
+  '';
+
+  # sops secret for the msmtp password (host-level file; pterodactyl owns the
+  # sops.defaultSopsFile for this host, so sopsFile is set explicitly).
+  sops.secrets."system/msmtp" = {
+    sopsFile = ./secrets.yaml;
+    mode = "0400";
+  };
+
+  # ZFS Event Daemon: email on drive fault / scrub / resilver / state change.
+  # Requires the sendmail setuid wrapper above.
+  services.zfs.zed = {
+    enableMail = true;
+    settings = {
+      ZED_EMAIL_ADDR = [ "root" ]; # aliased -> singularity@bnuy.dev
+      # notify on succeessful scrub + healthy state changes, not just failures
+      ZED_NOTIFY_VERBOSE = true;
+    };
   };
 
   users.users.admin.initialPassword = "password";

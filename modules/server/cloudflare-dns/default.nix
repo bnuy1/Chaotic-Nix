@@ -1,0 +1,5 @@
+{ ... }:
+
+{
+  imports = [ ./cloudflare-dns.nix ];
+}
