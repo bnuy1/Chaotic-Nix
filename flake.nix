@@ -74,6 +74,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    # Self-contained vaultwarden password-manager module. Local path flake;
+    # its nixosModules.default is imported by modules/server/default.nix and
+    # can be used standalone from any other flake via this input.
+    vaultwarden = {
+      url = "path:./modules/server/vaultwarden";
+    };
+
   };
 
   outputs =

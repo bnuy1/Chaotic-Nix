@@ -23,5 +23,8 @@
     traceroute
     tree
     vim
+
+    # Machine Specific Development
+    opencode
   ];
 }

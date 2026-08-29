@@ -1,1 +1,4 @@
-age1cgr490828hhcre4u5ssx700k7nyvajsupx2h667ntug9e3yc5etqxmgyhm
+# Age public key for encrypting module secrets.yaml files (§3).
+# This MUST match an identity in BOTH /var/lib/sops-nix/keys.txt (host)
+# and /root/.config/sops/age/keys.txt (interactive sops use).
+age1cp66msfm2h2dkqf5h0vr67y93q3hhrv2pq578dmql5rnduf4sufsxvzuty

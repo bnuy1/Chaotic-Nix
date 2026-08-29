@@ -37,7 +37,7 @@
       minimal = false; # Skip ../home import (no common pkgs/stylix/etc)      (default: false)
       nixvimConfig = null; # Override auto {user}.nix detection               (default: null)
 
-      # User-specific packages, This was difficult to make this supports pretty much everything including dots
+      # User-specific packages
       # Dot-supported: "kdePackages.kate" and "cowsay" are bolth valid
       extraPkgs = [ ];
 
@@ -72,7 +72,7 @@
       minimal = true; # Skip ../home import (no common pkgs/stylix/etc)       (default: false)
       nixvimConfig = null; # Override auto {user}.nix detection               (default: null)
 
-      # User-specific packages, This was difficult to make this supports pretty much everything including dots
+      # User-specific packages
       # Dot-supported: "kdePackages.kate" and "cowsay" are bolth valid
       extraPkgs = [ "tmux" ]; # raina wants tmux, bnuy does not
 
@@ -206,5 +206,7 @@
     remoteUnlock = null;  # initrd SSH remote unlock
     syncthing = null;     # Syncthing file sync
     mailcow = null;       # mailcow mail server
+    vaultwarden = null;   # Vaultwarden password manager (VPN-only, split DNS)
+    cloudflareDns = null; # dynamic Cloudflare WAN-DNS reconciler
   };
 }

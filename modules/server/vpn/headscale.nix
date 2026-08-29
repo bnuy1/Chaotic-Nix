@@ -260,8 +260,12 @@ in
         # vpn-headscale-cert runs after acme-${domain}.service and reloads nginx.
         sslCertificate = "${vpnSslDir}/cert.pem";
         sslCertificateKey = "${vpnSslDir}/key.pem";
+        # default_server on publicPort: connects that arrive by IP with no
+        # matching server_name (e.g. LAN clients pointed at 192.168.2.3:8443)
+        # land on headscale, not the pterodactyl panel. WAN 443 is ISP-blocked,
+        # so the control plane only needs publicPort.
+        default = true;
         listen = [
-          { addr = "0.0.0.0"; port = 443; ssl = true; }
           { addr = "0.0.0.0"; port = hs.tunnel.publicPort; ssl = true; }
         ];
         locations."/" = {
@@ -349,6 +353,10 @@ in
     security.acme.certs.${domain} = {
       dnsProvider = "cloudflare";
       credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets."vpn/cf_dns_token".path;
+      # bnuy.dev is also grey-cloud -> the same WAN IP, so its :8443 serves
+      # headscale too (the vhost is default_server on publicPort); cover it
+      # with the same cert so the browser/control-plane URL doesn't warn.
+      extraDomainNames = [ "bnuy.dev" ];
     };
 
     # Sync the vhost cert bundle: preferred real LE cert (acme-success marker +
@@ -385,6 +393,7 @@ in
             --provisioner admin \
             --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
             --san ${domain} \
+            --san bnuy.dev \
             ${domain} /tmp/vpn-cert.pem /tmp/vpn-key.pem
           SRC_CERT=/tmp/vpn-cert.pem
           SRC_KEY=/tmp/vpn-key.pem
@@ -411,7 +420,12 @@ in
       };
     };
 
-    systemd.tmpfiles.rules = [ "d ${vpnSslDir} 0755 root root -" ];
+    systemd.tmpfiles.rules = [
+      "d ${vpnSslDir} 0755 root root -"
+      "d /var/backups 0755 root root -"
+      "d /var/backups/headscale 0700 root root -"
+      "d /var/cache/restic 0700 root root -"
+    ];
 
     networking.firewall.allowedTCPPorts = [ 80 443 hs.tunnel.publicPort ];
     networking.firewall.allowedUDPPorts = [ 3478 ];
@@ -500,11 +514,14 @@ in
       # Subnet router: enable IP forwarding on this host.
       useRoutingFeatures = "server";
       openFirewall = true;
-      # Pre-auth key must be a tagged key created with --tags tag:admin
-      # (see secrets.yaml.example) so the node owns/approves its routes.
-      authKeyFile = config.sops.secrets."vpn/admin_preauthkey".path;
-      extraUpFlags = [
-        "--login-server=https://${domain}:${toString hs.tunnel.publicPort}"
+      # No standing auth key: a reusable tagged admin key in SOPS is a standing
+      # credential, so it was removed. The node's prefs (login server, routes,
+      # exit node) persist in the state file and are re-asserted at boot by
+      # `tailscale set` below. Re-auth after a logout is a manual one-off:
+      #   sudo tailscale up --login-server=https://vpn.bnuy.dev:8443 --hostname=singularity \
+      #     --advertise-routes=192.168.1.0/24,192.168.2.0/24 --advertise-exit-node \
+      #     --authkey="$(sudo headscale preauthkeys create --user 1 --tags tag:admin --expiration 10m)"
+      extraSetFlags = [
         "--hostname=${hs.subnetRouter.hostname}"
         "--advertise-routes=${lib.concatStringsSep "," hs.subnetRouter.routes}"
         # singularity is also the tailnet exit node (staff/admin/bnuy browse the
@@ -535,10 +552,12 @@ in
     };
 
     # headscale-admin: static management UI served by nginx above. Image tags
-    # track headscale majors; 0.27 is the newest build (works with 0.29's API).
+    # track headscale majors; the stable v0.27 build mis-parses headscale 0.29's
+    # apikey prefixes ("-***" suffix) so its Authorized badge never turns green
+    # - pin the dev build matching the 0.29 era until a tagged release lands.
     virtualisation.oci-containers.backend = lib.mkDefault "docker";
     virtualisation.oci-containers.containers.headscale-admin = lib.mkIf hs.enable {
-      image = "goodieshq/headscale-admin:v0.27";
+      image = "goodieshq/headscale-admin:dev";
       # Host-loopback only; nginx proxies /admin/ to it.
       ports = [ "127.0.0.1:8083:80" ];
     };
@@ -551,15 +570,75 @@ in
     # runtime module loading; load tun from the initrd (it stays loaded).
     boot.initrd.kernelModules = lib.mkIf hs.subnetRouter.enable [ "tun" ];
 
-    sops.secrets."vpn/admin_preauthkey" = lib.mkIf hs.subnetRouter.enable {
-      sopsFile = ./secrets.yaml;
-      mode = "0400";
-    };
-
     sops.secrets."vpn/headscale_admin_htpasswd" = lib.mkIf hs.enable {
       sopsFile = ./secrets.yaml;
       group = "nginx";
       mode = "0440";
+    };
+
+    # Restic repo password for headscale-backup.
+    sops.secrets."vpn/backup_password" = lib.mkIf hs.enable {
+      sopsFile = ./secrets.yaml;
+      owner = "root";
+      mode = "0400";
+    };
+
+    # ---------------------------------------------------------------------
+    # Backup: nightly restic into /var/backups/headscale/repo. The sqlite DB
+    # is the tailnet identity store (nodes, users, keys) - losing it means
+    # re-enrolling every device - so a WAL-consistent staging copy first,
+    # plus the DERP/noise private keys that pair with it. The ACL policy is
+    # generated from this repo, so it needs no backup. tmpfiles rules live
+    # in the shared block above.
+    # ---------------------------------------------------------------------
+    systemd.services.headscale-backup = lib.mkIf hs.enable {
+      description = "Headscale: restic backup (sqlite db, node keys)";
+      after = [ "headscale.service" "sops-nix.service" ];
+      wants = [ "sops-nix.service" ];
+      path = [
+        pkgs.restic
+        pkgs.sqlite
+        pkgs.coreutils
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        WorkingDirectory = "/var/backups/headscale";
+        ReadWritePaths = [ "/var/backups/headscale" ];
+        PrivateTmp = true;
+        NoNewPrivileges = true;
+        Nice = 10;
+        # systemd gives oneshot units no $HOME/$XDG_CACHE_HOME; restic refuses
+        # to run without a cache dir, so pin one.
+        Environment = "RESTIC_CACHE_DIR=/var/cache/restic";
+      };
+      script = ''
+        set -eu
+        export RESTIC_PASSWORD=$(cat ${config.sops.secrets."vpn/backup_password".path})
+        # Bare `restic` has no default repo; point it at this module's repo.
+        export RESTIC_REPOSITORY=/var/backups/headscale/repo
+        mkdir -p repo staging
+
+        rm -rf staging/*
+        sqlite3 ${config.services.headscale.settings.database.sqlite.path} ".backup 'staging/db.sqlite'"
+        cp /var/lib/headscale/derp_server_private.key staging/
+        cp /var/lib/headscale/noise_private.key staging/
+
+        if ! restic snapshots >/dev/null 2>&1; then
+          restic init
+        fi
+        restic backup staging --tag headscale
+        restic forget --keep-daily 7 --keep-weekly 4 --keep-monthly 6 --prune
+      '';
+    };
+
+    systemd.timers.headscale-backup = lib.mkIf hs.enable {
+      description = "Headscale: nightly backup";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "*-*-* 05:30:00";
+        Persistent = true;
+      };
     };
   };
 }

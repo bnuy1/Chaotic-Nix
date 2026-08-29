@@ -1,4 +1,4 @@
-{ config, lib, vars, inputs, ... }:
+{ config, lib, vars, inputs, pkgs, ... }:
 {
   imports = [
     # disko module: provides the `disko` option + generates fileSystems/swapDevices
@@ -23,48 +23,59 @@
   # the matching vars.serverModules entry is non-null. Values survive while the
   # service is disabled so it can be re-enabled without re-typing them.
 
-  # Pterodactyl panel (reserved 192.168.2.3). Disabled via serverModules.pterodactyl.
-  # Public access: Cloudflare Tunnel (outbound-only from the server), so the
-  # edge router's managed 443 rule and HSTS preload no longer matter.
-  #  - Cloudflare zone: bnuy.dev; minecraft.bnuy.dev -> tunnel (CNAME
-  #    minecraft.bnuy.dev.cfargotunnel.com, proxied).
-  #  - Tunnel ingress: HTTPS -> localhost:443, Origin Server Name
-  #    minecraft.bnuy.dev (panel serves the Let's Encrypt cert on 443/8443).
-  #  - Direct/LAN access still works at https://minecraft.bnuy.dev:8443 and
-  #    port 443 (LE cert via ACME).
+  # VPN/LAN-only: the Cloudflare tunnel is OFF and minecraft.bnuy.dev is a grey
+  # Minecraft hostname (not the panel), so the only public surface left for
+  # this box is mc/minecraft/bnuy.dev:25565 + vpn.bnuy.dev:8443 (headscale).
+  # Admin access is via LAN (https://192.168.2.3) or the tailnet subnet router.
   services.pterodactyl = {
     listenIP = "192.168.2.3";
-    domain = "minecraft.bnuy.dev";
+    # APP_URL / LAN domain vhost: step-ca cert covers both pterodactyl.network
+    # and 192.168.2.3, so the panel is reachable at either URL without warnings.
+    domain = "pterodactyl.network";
     email = "enigma558@proton.me";
     httpsPort = 8443;
-    # Clean URL through Cloudflare: APP_URL/redirects use https://minecraft.bnuy.dev.
     urlPort = 443;
-    # Cloudflare Tunnel daemon. Token must exist in the SOPS secret
-    # "pterodactyl/cloudflared_token" (under pterodactyl.cloudflared_token in
-    # /etc/nixos/modules/server/pterodactyl/secrets.yaml) BEFORE rebuilding.
-    cloudflared.enable = true;
-    # Old auto-DNS (resolve *.hostname.local) is superseded by the technitium
-    # .network zone, which already has a pterodactyl A record for this box.
-    configureDNS = false;
+    # No public exposure: web UIs live behind the VPN. With this off the module
+    # skips the ACME/domain vhosts entirely; only the LAN vhost is generated.
+    cloudflared.enable = false;
   };
 
   # Technitium DNS (serves home LAN via rack router 192.168.2.2).
   # Disabled via serverModules.technitium.
-  # Local zone "network": pterodactyl/minecraft/mailcow/technitium/vpn.network
+  # Local zone "network": pterodactyl/minecraft/mailcow/technitium/vpn/password.network
   # are A records for this box (provisioned declaratively by the
   # technitium-provision service). singularity itself resolves through it too.
   services.technitium = {
     listenAddress = "192.168.2.3";
     useLocally = true;
     localDomain = "network";
-    localNames = [ "pterodactyl" "minecraft" "mailcow" "technitium" "vpn" ];
+    localNames = [ "pterodactyl" "minecraft" "mailcow" "technitium" "vpn" "password" ];
+    # vpn.bnuy.dev -> 192.168.2.3 for LAN clients, so the headscale control
+    # URL works on WiFi despite the router's no-hairpin NAT.
+    # mc/minecraft.bnuy.dev -> same, so LAN players can join by name.
+    # password.bnuy.dev -> same, the vaultwarden vhost is VPN/split-DNS only:
+    # there is deliberately no public Cloudflare record for it.
+    splitDns = [ "vpn.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" "password.bnuy.dev" ];
   };
+
+  # Tailscale control plane + DERP are at vpn.bnuy.dev:8443. DNS resolves it
+  # to the public IP, which this LAN's router can't hairpin back, so pin the
+  # LAN IP in /etc/hosts for this box (tailscaled honors it).
+  networking.hosts."192.168.2.3" = [ "vpn.bnuy.dev" ];
+  # Local mailcow: SMTP/IMAP clients (msmtp, vaultwarden, pterodactyl) submit on
+  # 587 to this very box. They connect via mail.bnuy.dev so the TLS cert (SAN:
+  # mail.bnuy.dev) validates, but resolve it to loopback to stay on-box.
+  networking.hosts."127.0.0.1" = [ "mail.bnuy.dev" ];
 
   # Netboot (LAN-only, never leaves the rack). Enabled via serverModules.netboot.
   services.netboot = {
     listenIp = "192.168.2.3";
     interface = "enp3s0";
   };
+
+  # TEMPORARY: first-user bootstrap (vaultwarden module header, step 1).
+  # Register at https://password.bnuy.dev, then flip back to false + rebuild.
+  services.vaultwarden.signupsAllowed = true;
 
   # Headscale VPN server (control plane + exit node + subnet router).
   # Enabled via serverModules.vpn-server.
@@ -91,7 +102,9 @@
     acl = {
       adminSubnets = [ "192.168.1.0/24" "192.168.2.0/24" ];
       serviceHost = "192.168.2.3";
-      staffPorts = [ 443 993 995 465 587 4190 53 ];
+      # 25565 = Minecraft: tailnet players (staff) connect straight to the box,
+      # skipping the Cloudflare relay for lower latency.
+      staffPorts = [ 443 993 995 465 587 4190 53 25565 ];
       guestPorts = [ 443 53 ];
     };
     subnetRouter = {
@@ -100,6 +113,12 @@
       hostname = "singularity";
     };
   };
+
+  # WAN DNS (grey-cloud A records tracking the rotating home IP) moved to the
+  # cloudflareDns server module — see serverModules.cloudflareDns in
+  # variables.nix. Same reconciler logic as the old mc-wan-dns service, now
+  # reusable by any host, with its own SOPS token
+  # (modules/server/cloudflare-dns/secrets.yaml).
 
   # Remote unlock via initrd SSH. Enabled via serverModules.remoteUnlock.
   services.remoteUnlock = {
@@ -114,6 +133,54 @@
   boot.initrd.systemd.network = {
     enable = vars.initrdUnlock.enable or false;
     networks = vars.initrdUnlock.networks or {};
+  };
+
+  # ---------------------------------------------------------------------------
+  # System mail (local-only): msmtp submits to the host mailcow on 587 as the
+  # singularity@bnuy.dev mailbox. Used by ZFS ZED (drive failure / scrub done),
+  # cron and root. Recipients are @bnuy.dev inboxes; nothing leaves the box.
+  # ---------------------------------------------------------------------------
+  services.mail.sendmailSetuidWrapper.enable = true;
+
+  programs.msmtp = {
+    enable = true;
+    setSendmail = true;
+    defaults = {
+      aliases = "/etc/aliases";
+      port = 587;
+      auth = "plain";
+      tls = "on";
+      tls_starttls = "on";
+      tls_trust_file = "/etc/ssl/certs/ca-certificates.crt";
+    };
+    accounts.default = {
+      host = "mail.bnuy.dev";
+      passwordeval = "cat ${config.sops.secrets."system/msmtp".path}";
+      user = "singularity@bnuy.dev";
+      from = "singularity@bnuy.dev";
+    };
+  };
+
+  environment.etc.aliases.text = ''
+    root: singularity@bnuy.dev
+  '';
+
+  # sops secret for the msmtp password (host-level file; pterodactyl owns the
+  # sops.defaultSopsFile for this host, so sopsFile is set explicitly).
+  sops.secrets."system/msmtp" = {
+    sopsFile = ./secrets.yaml;
+    mode = "0400";
+  };
+
+  # ZFS Event Daemon: email on drive fault / scrub / resilver / state change.
+  # Requires the sendmail setuid wrapper above.
+  services.zfs.zed = {
+    enableMail = true;
+    settings = {
+      ZED_EMAIL_ADDR = [ "root" ]; # aliased -> singularity@bnuy.dev
+      # notify on succeessful scrub + healthy state changes, not just failures
+      ZED_NOTIFY_VERBOSE = true;
+    };
   };
 
   users.users.admin.initialPassword = "password";

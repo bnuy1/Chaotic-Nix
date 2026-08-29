@@ -17,7 +17,7 @@ in
 {
   environment = {
     shellAliases = {
-      # Dumps logs to screen, then drops you into the RCON console indistinguishable from normal attaching sessions
+      # Print logs, then drop into the server's RCON console
       bnuy = "sudo docker logs minecraft-survival && sudo docker exec -it minecraft-survival rcon-cli";
       bnuy-lab = "sudo docker logs minecraft-lab && sudo docker exec -it minecraft-lab rcon-cli";
       bnuy-raina = "sudo docker logs minecraft-raina && sudo docker exec -it minecraft-raina rcon-cli";
@@ -460,7 +460,7 @@ in
     timerConfig = {
       OnCalendar = "03:00:00"; # 3AM
       Persistent = true; # the evil line
-      RandomizedDelaySec = "10m"; # Add a slight random delay (up to 10m) so it doesn't fight with any scheduled jobs
+      RandomizedDelaySec = "10m"; # Stagger so we don't collide with the in-container itzg backups
     };
   };
 
@@ -750,7 +750,7 @@ in
           done
         else
           echo "Restoring $TARGET from snapshot: $SNAP_ID..."
-          # We mount the root minecraft folder, and tell restic to only include the specific server's folder
+          # Mount whole minecraft dir; restic restores only this server's folder
           sudo docker run --rm \
             -v /var/lib/minecraft:/data \
             -v /var/backups/minecraft:/backups \
@@ -842,7 +842,7 @@ in
       if ! command -v "$FIRST_WORD" >/dev/null 2>&1; then echo "ERROR: Invalid command."; exit 1; fi
       echo "Countdown started for $total seconds..."
 
-      # A smart way to only inform the servers that need to know of the rollback, potentially stemming fear if all servers heard a rollback was starting
+      # Only tell the servers that need to know (avoid mass panic)
       broadcast() {
         local msg="$1"
         if [ "$InformServer" == "all" ]; then
