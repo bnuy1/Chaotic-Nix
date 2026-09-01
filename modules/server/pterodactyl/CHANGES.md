@@ -2,6 +2,28 @@
 
 Server: Pterodactyl/Wings on NixOS. Velocity proxy `a3f70d61`, Lobby `fd255e51` (Folia 26.2-5), Survival `88f35865`, Creative `b4eaaa4d`. MariaDB container `minecraft-db`.
 
+## 2026-08-30 (audit remediation — P-f, P-h)
+
+- **P-f [x]** — LAN/tailnet fence for the panel + wings:
+  - `${tls.vpnLanFence}` on the domain vhost and the `${cfg.listenIP}` vhost
+    (server-level `extraConfig`, keeps `index index.php;`). Wings→panel dials
+    its own LAN IP (192.168.2.3, in the allowlist) so the fence doesn't break it.
+  - Removed `default = true` from the listenIP vhost; added a dedicated 444
+    default stub on 443 (LAN cert, `return 444;`) so unmatched Host/SNI
+    (incl. the tunnel origin dialing localhost) never hits the panel.
+  - Fenced the wings proxy vhost the same way.
+  - `wingsProxyPort` (8084) + `wingsSftpPort` (2022) dropped from
+    `allowedTCPPorts`; source-scoped `iptables -I INPUT 1` ACCEPTs for LAN
+    subnets + tailnet in `networking.firewall.extraCommands`, default DROP
+    handles the rest. `# ponytail:` do NOT `-A` those into `nixos-fw` — the
+    append can land below the chain's DROP in some firewall revisions.
+  - wings `config.yml` `allowed_origins` sed now writes `${cfg.domain}` instead
+    of hardcoded `https://pterodactyl.network`.
+- **P-h [x]** — restic backup repos no longer world-writable: tmpfiles for
+  `backup-{velocity,survival,creative,lobby}` now `0770 root pterodactyl` with a
+  matching `Z` line per repo so already-created 0777 dirs are re-modded/re-chowned
+  on the next boot (mc-backup containers run as uid 994 = pterodactyl).
+
 ## 2026-08-20 — Lobby shop dialog fixed (FancyDialogs Folia patch)
 
 **Symptom:** Clicking the shopkeeper's "Can i see your wares?" button kicked the player with "Internal Exception". Other buttons (messages, open_dialog) worked.

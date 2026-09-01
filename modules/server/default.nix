@@ -31,9 +31,21 @@ let
     # vaultwarden is a self-contained sub-flake (modules/server/vaultwarden),
     # tracked as the `vaultwarden` flake input: services.vaultwarden.
     vaultwarden = inputs.vaultwarden.nixosModules.default;
+    # authentik is a self-contained sub-flake (modules/server/authentik),
+    # tracked as the `authentik` flake input: services.authentik.
+    authentik = inputs.authentik.nixosModules.default;
     # dynamic Cloudflare WAN-DNS reconciler (grey-cloud A records track the
     # rotating home IP): services.cloudflareDns
     cloudflareDns = ./cloudflare-dns;
+    homepage-dashboard = ./homepage-dashboard;
+    uptime-kuma = ./uptime-kuma;
+    ntfy-sh = ./ntfy-sh;
+    # Cloudflare tunnel (outbound) fronting all public web hostnames - escapes
+    # the ISP inbound-443 block via the CF edge: services.cloudflareTunnel
+    cloudflare-tunnel = ./cloudflare-tunnel;
+    # Operator 403 landing page for fenced services (services."403"). Self-
+    # contained; the fence helpers in lib.nix reference its assetsDir.
+    "403" = ./403;
   };
 
   # Generate a module per server module that pins services.<name>.enable:

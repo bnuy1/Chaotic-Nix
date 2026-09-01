@@ -9,12 +9,12 @@
 #   - sops secrets via a rendered EnvironmentFile
 #   - restic backup into /var/backups/vaultwarden (per-module repo convention)
 #
-# VPN-only by design: the daemon binds loopback; nginx terminates TLS. No
-# Cloudflare record, no port-forward - password.bnuy.dev resolves via
-# Technitium split DNS (wire it in the host's services.technitium block:
-# splitDns += domain), <lanDomain> via the local zone (localNames += its
-# leftmost label). Tailnet clients reach it through the subnet router at the
-# box's LAN IP.
+# By design: the daemon binds loopback; nginx terminates TLS. The public A
+# record ships via the host's cloudflareDns block (grey-cloud, tracks the WAN
+# IP) so remote clients + LE can reach the box; LAN clients resolve
+# password.bnuy.dev via Technitium split DNS to the LAN IP (no hairpin),
+# <lanDomain> via the local zone (localNames += its leftmost label). Tailnet
+# clients reach it through the subnet router at the box's LAN IP.
 #
 # Threat model = mailcow webmail: the app's own auth gates everything.
 # Headscale policy is accept-only (no deny action) and nginx cannot see
@@ -32,16 +32,15 @@
 # never through services.vaultwarden.config, which lands in a world-readable
 # nix store path.
 #
-# TLS: public vhost (domain) is LE via ACME DNS-01 (cloudflare) with a bnuy
-# step-ca fallback; the LAN vhost (lanDomain) is bnuy step-ca only (no public
-# DNS to validate against). Certificates synced to /var/lib/vaultwarden-ssl by
-# vaultwarden-cert with a daily renewal timer, outside the daemon's
-# StateDirectory because upstream pins that to 0700/UMask 0077, which the nginx
-# user cannot traverse (same reason pterodactyl pins its LAN certs to group
-# nginx).
-# Coupling (accepted, see styleguide §2): the LE DNS-01 challenge reuses the
-# vpn/cf_dns_token sops secret and the bnuy fallbacks reuse step-ca/password +
-# step-ca/root_ca.crt - all present on singularity.
+# TLS: public vhost (domain) is LE via ACME http-01 (shared webroot, same as
+# mail) with a bnuy step-ca fallback; the LAN vhost (lanDomain) is bnuy
+# step-ca only (no public DNS to validate against). Certificates synced to
+# /var/lib/vaultwarden-ssl by vaultwarden-cert with a daily renewal timer,
+# outside the daemon's StateDirectory because upstream pins that to
+# 0700/UMask 0077, which the nginx user cannot traverse (same reason
+# pterodactyl pins its LAN certs to group nginx).
+# Coupling (accepted, see styleguide §2): the bnuy fallbacks reuse
+# step-ca/password + step-ca/root_ca.crt - all present on singularity.
 
 {
   config,
@@ -61,7 +60,7 @@ let
   sslDir = "/var/lib/vaultwarden-ssl";
   backupDir = "/var/backups/vaultwarden";
 
-  # Public vhost (cfg.domain) uses LE via ACME DNS-01, synced with a bnuy
+  # Public vhost (cfg.domain) uses LE via ACME http-01, synced with a bnuy
   # step-ca fallback into le-cert.pem/le-key.pem. The LAN vhost (cfg.lanDomain)
   # uses a bnuy-only leaf in cert.pem/key.pem (no public DNS to LE-validate).
   acmeDir = lib.optionalString (cfg.domain != null) "/var/lib/acme/${cfg.domain}";
@@ -85,6 +84,15 @@ let
       inherit serverName;
       addSSL = true;
       http2 = true;
+      # Pin 443 only (same as mail's vhost): the addSSL default also listens on
+      # 80 and would shadow the -http challenge vhost.
+      listen = [
+        {
+          addr = "0.0.0.0";
+          port = 443;
+          ssl = true;
+        }
+      ];
       sslCertificate = "${sslDir}/${certFile}";
       sslCertificateKey = "${sslDir}/${keyFile}";
       locations."/" = {
@@ -96,6 +104,7 @@ let
           proxy_set_header X-Real-IP $remote_addr;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
+          limit_req zone=bnuy_public burst=25 nodelay;
         '';
       };
     };
@@ -115,6 +124,28 @@ in
         Open signups. Only flip on to bootstrap the first user account,
         then back off.
       '';
+    };
+    mailcowSync = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Reconcile vaultwarden accounts against the mailcow mailbox list
+        (mailcow = source of truth for identities, AGENTS.md). Invites missing
+        accounts, disables ones whose mailbox is gone; never touches existing
+        active accounts. Authenticates to the /admin API with the
+        vaultwarden/admin_raw_token secret (POST /admin cookie flow).
+      '';
+    };
+    syncExcludedAddresses = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [
+        "vaultwarden@bnuy.dev"
+        "pterodactyl@bnuy.dev"
+        "immich@bnuy.dev"
+        "singularity@bnuy.dev"
+        "uptime@bnuy.dev"
+      ];
+      description = "Mailbox addresses to never create vaultwarden accounts for (service mailboxes)";
     };
   };
 
@@ -144,6 +175,15 @@ in
     sops.secrets."vaultwarden/admin_token" = {
       sopsFile = ./secrets.yaml;
       owner = "vaultwarden";
+      mode = "0400";
+    };
+    # RAW admin-panel login secret (the plaintext partner that argon2-verifies
+    # against the admin_token hash). The /admin API no longer accepts a Bearer
+    # header - it only issues a VW_ADMIN session cookie from POST /admin
+    # (token=<raw>). The daemon env keeps only the hash (admin_token); this raw
+    # value is read by the root-run mailcow-sync timer to obtain that cookie.
+    sops.secrets."vaultwarden/admin_raw_token" = {
+      sopsFile = ./secrets.yaml;
       mode = "0400";
     };
     sops.secrets."vaultwarden/smtp_username" = {
@@ -195,20 +235,72 @@ in
     # ---------------------------------------------------------------------
     services.nginx = {
       enable = lib.mkDefault true;
-      virtualHosts = lib.listToAttrs (map (n: lib.nameValuePair n (mkVhost n)) vhosts);
+      virtualHosts =
+        lib.listToAttrs (map (n: lib.nameValuePair n (mkVhost n)) vhosts)
+        // lib.optionalAttrs (cfg.domain != null) {
+          # Port 80: serve the http-01 challenge (useACMEHost) + redirect the
+          # rest. Same shape as mail's -http vhost.
+          "${cfg.domain}-http" = {
+            serverName = cfg.domain;
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = 80;
+              }
+            ];
+            useACMEHost = cfg.domain;
+            locations."/" = {
+              extraConfig = "return 301 https://$host$request_uri;";
+            };
+          };
+        };
     };
 
-    # Standalone hosts need 443 opened; on singularity it already is.
-    networking.firewall.allowedTCPPorts = [ 443 ];
+    # Standalone hosts need 443+80 opened; on singularity they already are.
+    networking.firewall.allowedTCPPorts = [ 443 80 ];
 
     security.acme = lib.mkIf (cfg.domain != null) {
       acceptTerms = lib.mkDefault true;
       defaults.email = lib.mkDefault "enigma558@proton.me";
       certs.${cfg.domain} = {
+        # DNS-01: password.bnuy.dev is tunneled (Cloudflare edge fronts :80),
+        # so http-01 can't reach the origin; prove the zone via the CF API
+        # (same token + precedent as vpn.bnuy.dev). The -http vhost above
+        # stays as a plain 301 redirect.
         dnsProvider = "cloudflare";
         credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets."vpn/cf_dns_token".path;
         group = "nginx";
       };
+    };
+
+    # DNS-01 zone-walk guard (same as lib.nix mkAcme): local Technitium serves
+    # authoritative SOA for this splitDns FQDN, which would trap lego's SOA
+    # walk at the local zone forever. Overlay public resolvers onto the acme
+    # unit so the walk reaches the real bnuy.dev zone.
+    systemd.services.acme-dns-public = lib.mkIf (cfg.domain != null) {
+      description = "Write public-resolver resolv.conf for DNS-01 acme units";
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        mkdir -p /run/acme-dns-public
+        printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /run/acme-dns-public/resolv.conf
+        chmod 0644 /run/acme-dns-public/resolv.conf
+      '';
+    };
+    systemd.services."acme-${cfg.domain}" = lib.mkIf (cfg.domain != null) {
+      after = [ "acme-dns-public.service" ];
+      requires = [ "acme-dns-public.service" ];
+      serviceConfig.BindReadOnlyPaths = [ "/run/acme-dns-public/resolv.conf:/etc/resolv.conf" ];
+    };
+    # The lego SOA walk itself runs in the order-renew unit on renewals and at
+    # the end of the initial issue - it needs the same overlay.
+    systemd.services."acme-order-renew-${cfg.domain}" = lib.mkIf (cfg.domain != null) {
+      after = [ "acme-dns-public.service" ];
+      requires = [ "acme-dns-public.service" ];
+      serviceConfig.BindReadOnlyPaths = [ "/run/acme-dns-public/resolv.conf:/etc/resolv.conf" ];
     };
 
     systemd.services.vaultwarden-cert = {
@@ -279,8 +371,11 @@ in
             # Reload only when nginx is already up: on boot nginx starts after
             # us (before=nginx.service), and try-reload-or-restart would queue
             # a restart that deadlocks on the pending nginx start job.
+            # --no-block prevents the reload job from deadlocking a concurrent
+            # cert-sync (reload waits on the running sync whose script is
+            # waiting on that same reload).
             systemctl is-active --quiet nginx.service \
-              && systemctl reload nginx.service || true
+              && systemctl reload nginx.service --no-block || true
           fi
         ''}
       '';
@@ -357,6 +452,109 @@ in
       wantedBy = [ "timers.target" ];
       timerConfig = {
         OnCalendar = "*-*-* 06:30:00";
+        Persistent = true;
+      };
+    };
+
+    # ---------------------------------------------------------------------
+    # vaultwarden-mailcow-sync: mailcow mailbox list -> vaultwarden accounts.
+    # The mailcow GAL is the identity source (AGENTS.md "Identity"); this keeps
+    # the vaultwarden user list in step. Dials the mailcow container's
+    # httpsPort (8082) directly - the same loopback path as mailcow-provision,
+    # so the host-nginx /api/v1 fence never applies. Runs as root: it has to
+    # read both secrets (`mailcow/api_key` is 0400 mailcow, `admin_raw_token`
+    # is 0400 root) - no single non-root identity holds both.
+    #
+    # AUTH (verified vs vaultwarden 1.37.1 admin.rs): the admin API is
+    # cookie-session only. There is no `Authorization: Bearer` path for admin.
+    # Login is `POST /admin` (x-www-form-urlencoded `token=<raw>`) which
+    # argon2-verifies the RAW secret against the configured ADMIN_TOKEN hash
+    # and sets a `VW_ADMIN` JWT cookie (path=/admin). Every wildcard admin
+    # route below carries that cookie. The timer logs in fresh on every run so
+    # the short-lived session cookie can never go stale.
+    #   - list    GET  /admin/users                                -> JSON array
+    #   - invite  POST /admin/invite      {"email": "..."}         -> 409 if exists
+    #   - disable POST /admin/users/<id>/disable  (JSON format)
+    #   - enable  POST /admin/users/<id>/enable   (JSON format)
+    # ponytail: compares by email string only; a mailbox rename shows up as
+    # invite+disable (a fresh invite for the new address, the old left
+    # disabled). API shapes were verified against the pinned 1.37.1 source.
+    # ---------------------------------------------------------------------
+    systemd.services.vaultwarden-mailcow-sync = lib.mkIf cfg.mailcowSync {
+      description = "Vaultwarden: reconcile accounts against the mailcow mailbox list";
+      after = [
+        "vaultwarden.service"
+        "mailcow-setup.service"
+        "sops-nix.service"
+      ];
+      wants = [ "sops-nix.service" ];
+      wantedBy = [ "multi-user.target" ];
+      path = [
+        pkgs.curl
+        pkgs.jq
+        pkgs.gnugrep
+        pkgs.gawk
+        pkgs.coreutils
+      ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        Restart = "on-failure";
+        RestartSec = 60;
+      };
+      script = ''
+        set -eu
+        MAILCOW_API=https://127.0.0.1:8082/api/v1   # mailserver httpsPort default
+        VW_ADMIN=http://127.0.0.1:${toString port}/admin
+        API_KEY=$(cat ${config.sops.secrets."mailcow/api_key".path})
+        ADMIN_RAW=$(cat ${config.sops.secrets."vaultwarden/admin_raw_token".path})
+        JAR=/run/vw-sync-cookies
+        EXCLUDED='${lib.concatStringsSep "|" cfg.syncExcludedAddresses}'
+
+        # Obtain a VW_ADMIN session cookie (argon2-verified against the raw).
+        curl -sf -c "$JAR" -o /dev/null -X POST \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          --data-urlencode "token=$ADMIN_RAW" \
+          "$VW_ADMIN"
+
+        # Active mailcow mailboxes, minus the excluded service addresses.
+        # mailcow returns `active` as an INTEGER 1 (not the string "1").
+        curl -sfk -H "X-API-Key: $API_KEY" "$MAILCOW_API/get/mailbox/all" \
+          | jq -r '.[] | select(.active == 1) | .username' \
+          | grep -Ev "^($EXCLUDED)$" | sort -u > /run/vw-sync-mailboxes
+
+        # Existing vaultwarden users as "id<TAB>email" (admin session cookie).
+        curl -sf -b "$JAR" "$VW_ADMIN/users" \
+          | jq -r '.[]? | select(.email != "") | [.id, .email] | @tsv' \
+          | sort -k2 > /run/vw-sync-users
+
+        # Invite missing (mailcow has, vaultwarden has not). invite_user 409s
+        # if the account already exists, so skip only what we already have.
+        cut -f2 /run/vw-sync-users | sort -u \
+          | comm -23 /run/vw-sync-mailboxes - | while read -r email; do
+            curl -sf -b "$JAR" -X POST -H "Content-Type: application/json" \
+              -d "{\"email\":\"$email\"}" "$VW_ADMIN/invite" >/dev/null \
+              || echo "WARN: invite failed for $email"
+          done
+
+        # Disable removed (vaultwarden has, mailbox gone).
+        cut -f2 /run/vw-sync-users | sort -u \
+          | comm -13 /run/vw-sync-mailboxes - | while read -r email; do
+            id=$(awk -F'\t' -v e="$email" '$2==e{print $1; exit}' /run/vw-sync-users)
+            if [ -n "$id" ]; then
+              curl -sf -b "$JAR" -X POST -H "Content-Type: application/json" \
+                "$VW_ADMIN/users/$id/disable" >/dev/null \
+                || echo "WARN: disable failed for $email"
+            fi
+          done
+      '';
+    };
+
+    systemd.timers.vaultwarden-mailcow-sync = lib.mkIf cfg.mailcowSync {
+      description = "Vaultwarden: hourly mailcow account reconcile";
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "hourly";
         Persistent = true;
       };
     };

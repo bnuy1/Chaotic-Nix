@@ -47,9 +47,40 @@ let
       "mta-sts.${d}"
     ]) cfg.mailDomains
   );
-  aliases = lib.remove null (lib.unique (sanNames ++ cfg.mailDomains));
+  # mail.bnuy.dev is tunneled (web UI over the CF edge, HTTP ports only), so
+  # the SMTP/IMAP/MX protocols moved to a direct host. Mail clients dial
+  # mx.bnuy.dev:25/465/587/993/995 and need it on every mail TLS cert:
+  # - the LE cert (vhost serverAliases -> nginx extraDomainNames merge)
+  # - the step-ca fallback leaf below
+  mxHost = "mx.bnuy.dev";
+  aliases = lib.remove null (lib.unique ([ mxHost ] ++ sanNames ++ cfg.mailDomains));
 
   project = cfg.project;
+
+  # shared server plumbing (ssl/vhost/fence helpers); takes only {lib,pkgs}.
+  tls = (import ../lib.nix) { inherit lib pkgs; };
+
+  # ponytail: docker-published ports live on the FORWARD chain (DNAT), where the
+  # nixos-firewall INPUT rules never see them - DOCKER-USER is the only WAN lever.
+  # postfix/dovecot already enforce TLS inbound, so cleartext 110/143 must only
+  # ever be reachable from LAN+tailnet, never across the CF/tunnel edge.
+  dockerUserFence = pkgs.writeShellScript "mailcow-docker-user-fence" ''
+    IPT=${pkgs.iptables}/bin/iptables
+chain=DOCKER-USER
+    # Docker may be mid-restart (chain gone); let the next ExecStartPost retry.
+    $IPT -w -S $chain >/dev/null 2>&1 || exit 0
+    # Trusted sources RETURN before the final DROP; insert each at the top so
+    # docker/mailcow -I churn later can't jump the queue. One rule per port:
+    # this kernel's nft_compat can't translate `-m multiport` (no xt_multiport).
+    for port in 110 143; do
+      for trust in 192.168.1.0/24 192.168.2.0/24 100.64.0.0/10; do
+        $IPT -w -C $chain -p tcp --dport $port -s "$trust" -j RETURN 2>/dev/null \
+          || $IPT -w -I $chain 1 -p tcp --dport $port -s "$trust" -j RETURN
+      done
+      $IPT -w -C $chain -p tcp --dport $port -j DROP 2>/dev/null \
+        || $IPT -w -A $chain -p tcp --dport $port -j DROP
+    done
+  '';
 in
 {
   options.services.mailcow = {
@@ -152,6 +183,14 @@ in
           passwordSopsKey = "mailbox_singularity";
           quota = 25;
         }
+        # Uptime Kuma: outage/info mails via SMTP submission on 127.0.0.1:587.
+        # Credential set in the app's notification channel config (its DB).
+        {
+          address = "uptime@bnuy.dev";
+          name = "Uptime Kuma";
+          passwordSopsKey = "mailbox_uptime";
+          quota = 25;
+        }
       ];
       description = "Mailboxes created by mailcow-provision on first boot";
     };
@@ -206,9 +245,18 @@ in
         sslCertificate = "${nginxSslDir}/cert.pem";
         sslCertificateKey = "${nginxSslDir}/key.pem";
         http2 = true;
+        # [::0]: mail.bnuy.dev is pinned to 127.0.0.1 in /etc/hosts, so
+        # systemd-resolved also synthesizes ::1; cloudflared dials the tunnel
+        # origin over ::1 and would fall through to a *.network vhost on
+        # [::0]:443 (wrong cert) unless the mail vhost listens on v6 too.
         listen = [
           {
             addr = "0.0.0.0";
+            port = 443;
+            ssl = true;
+          }
+          {
+            addr = "[::0]";
             port = 443;
             ssl = true;
           }
@@ -223,6 +271,40 @@ in
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header Authorization $http_authorization;
+            limit_req zone=bnuy_public burst=25 nodelay;
+          '';
+        };
+        # Admin gate: superadmin + domain admin both operate under /admin. Only
+        # LAN + tailnet sources pass; the tunnel origin (127.0.0.1) is denied,
+        # so /admin is unreachable through the public Cloudflare edge. Webmail
+        # and login for mail users stay public at /.
+        locations."/admin" = {
+          proxyPass = "https://127.0.0.1:${toString cfg.httpsPort}";
+          proxyWebsockets = true;
+          extraConfig = ''
+            proxy_ssl_verify off;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Authorization $http_authorization;
+            ${tls.vpnLanFence}
+          '';
+        };
+        # API gate: same fence as /admin (AGENTS.md posture 3). Admin tooling
+        # (mailcow-provision, the future vaultwarden-mailcow-sync) talks to the
+        # loopback httpsPort directly, so the fence only blocks cross-WAN hits.
+        locations."/api/v1" = {
+          proxyPass = "https://127.0.0.1:${toString cfg.httpsPort}";
+          proxyWebsockets = true;
+          extraConfig = ''
+            proxy_ssl_verify off;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header Authorization $http_authorization;
+            ${tls.vpnLanFence}
           '';
         };
       };
@@ -248,13 +330,46 @@ in
       certs.${cfg.domain} = {
         email = cfg.email;
         group = "nginx";
-        # http-01 served from this dir by the port-80 vhost (which uses
-        # useACMEHost = cfg.domain). Set explicitly because the nginx module
-        # only wires webroot itself for vhosts with enableACME = true.
-        webroot = "/var/lib/acme/acme-challenge";
-        # extraDomainNames intentionally left to the nginx module, which
-        # merges serverAliases (all SAN + apex domains) into the cert.
+        # DNS-01: mail.bnuy.dev is tunneled (Cloudflare edge fronts :80), so
+        # http-01 can't reach the origin vhost; prove the zone via the CF API
+        # (same token + precedent as vpn.bnuy.dev). The -http vhost above
+        # stays as a plain 301 redirect.
+        dnsProvider = "cloudflare";
+        credentialFiles.CF_DNS_API_TOKEN_FILE = config.sops.secrets."vpn/cf_dns_token".path;
+        # extraDomainNames (incl. the mx.bnuy.dev mail-protocols host)
+        # intentionally left to the nginx module, which merges serverAliases
+        # (all SAN + apex domains) into the cert.
       };
+    };
+
+    # DNS-01 zone-walk guard (same as lib.nix mkAcme): local Technitium serves
+    # authoritative SOA for the splitDns FQDNs (incl. mail.bnuy.dev now), which
+    # would trap lego's SOA walk at the local zone forever. Overlay public
+    # resolvers onto the acme unit so the walk reaches the real bnuy.dev zone.
+    systemd.services.acme-dns-public = {
+      description = "Write public-resolver resolv.conf for DNS-01 acme units";
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+      };
+      script = ''
+        mkdir -p /run/acme-dns-public
+        printf 'nameserver 1.1.1.1\nnameserver 8.8.8.8\n' > /run/acme-dns-public/resolv.conf
+        chmod 0644 /run/acme-dns-public/resolv.conf
+      '';
+    };
+    systemd.services."acme-${cfg.domain}" = {
+      after = [ "acme-dns-public.service" ];
+      requires = [ "acme-dns-public.service" ];
+      serviceConfig.BindReadOnlyPaths = [ "/run/acme-dns-public/resolv.conf:/etc/resolv.conf" ];
+    };
+    # The lego SOA walk itself runs in the order-renew unit on renewals and at
+    # the end of the initial issue - it needs the same overlay.
+    systemd.services."acme-order-renew-${cfg.domain}" = {
+      after = [ "acme-dns-public.service" ];
+      requires = [ "acme-dns-public.service" ];
+      serviceConfig.BindReadOnlyPaths = [ "/run/acme-dns-public/resolv.conf:/etc/resolv.conf" ];
     };
 
     networking.firewall.allowedTCPPorts = [
@@ -267,6 +382,11 @@ in
       995 # imaps / pop3s
       4190 # manage sieve
     ];
+
+    # Re-assert the 110/143 fence on every docker start (docker re-creates
+    # DOCKER-USER whenever its firewall state resets). Runs as root inside the
+    # docker unit itself; "+" prefix not needed (docker.service runs as root).
+    systemd.services.docker.postStart = "${dockerUserFence}";
 
     # ---------------------------------------------------------------------
     # sops secrets (sopsFile set explicitly: pterodactyl module owns
@@ -649,7 +769,7 @@ in
               --provisioner admin \
               --provisioner-password-file ${config.sops.secrets."step-ca/password".path} \
               ${
-                lib.concatMapStringsSep " " (s: "--san ${s}") ([ cfg.domain ] ++ sanNames ++ cfg.mailDomains)
+                lib.concatMapStringsSep " " (s: "--san ${s}") ([ cfg.domain ] ++ sanNames ++ cfg.mailDomains ++ [ mxHost ])
               } \
               ${cfg.domain} /tmp/mailcow-cert.pem /tmp/mailcow-key.pem 2>/dev/null; then
             SRC_CERT=/tmp/mailcow-cert.pem

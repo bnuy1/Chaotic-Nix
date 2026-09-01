@@ -22,7 +22,6 @@
         "wheel"
       ];
       shell = "fish"; # Login shell. Supported: "bash", "fish"                (default: "bash")
-      initialPassword = "password";
       sshKeys = [
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJGAEcER9ynK7Fc34QKLC1441KIj4AJh6Ey6W6O6FW8S"
         "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFNohenCiYWNpZXB05tskL/aP3aYWYtmO8PTz2INP0Up"
@@ -68,8 +67,7 @@
   # Sets $BROWSER session var. google-chrome also enables unfree.
   browser = null;
 
-  # Trust the bnuy LAN CA root (this host runs step-ca) so clients accept
-  # step-ca-issued leaf certs.
+  # step-ca-issued CA leaf certs.
   trustBnuyCA = true;
 
   # Sets $EDITOR, $VISUAL, $SUDO_EDITOR for all users
@@ -196,8 +194,6 @@
   #   null    = disabled (options stay declared; per-host config lives in default.nix)
   #   true    = enabled with default options
   #   attrset = enabled with those options applied to services.<name>
-  # Rule: singularity runs every server service (it's the rack server); every
-  # other device is only a headscale VPN client (services.vpn).
   serverModules = {
     pterodactyl = {
       mcAdmin = true;
@@ -211,20 +207,46 @@
     syncthing = true; # Syncthing file sync
     mailcow = true; # mailcow mail server
     vaultwarden = true; # Vaultwarden password manager (VPN-only, split DNS)
+    homepage-dashboard = true; # Homepage dashboard (public: dash.bnuy.dev)
+    uptime-kuma = true; # Uptime Kuma (public: kuma.bnuy.dev)
+    ntfy-sh = true; # ntfy push notifications (public: ntfy.bnuy.dev)
+    # authentik SSO/IdP (public at auth.bnuy.dev, tunneled): identity + nginx
+    # forward-auth for no-native-login apps (headscale panel, homepage mgmt).
+    authentik = true;
+    # Cloudflare tunnel (outbound) fronting every public web hostname - the ISP
+    # blocks inbound 443, so web exits via the CF edge (dash/kuma/ntfy/password
+    # web UI + mail.bnuy.dev roundcube/admin + auth.bnuy.dev SSO). LE flips to
+    # DNS-01 for these.
+    cloudflare-tunnel = {
+      hosts = [
+        "dash.bnuy.dev"
+        "kuma.bnuy.dev"
+        "ntfy.bnuy.dev"
+        "password.bnuy.dev"
+        "mail.bnuy.dev"
+        "auth.bnuy.dev"
+      ];
+    };
     # Grey-cloud A records that must track the rotating WAN IP (see
     # hosts/singularity/default.nix history: 2026-08-23 WAN rotation took down
-    # remote VPN + would have reverted mail/MC DNS).
+    # remote VPN + would have reverted mail/MC DNS). Everything tunneled is EXCLUDED
+    # here - the reconciler force-substitutes grey As and would clobber the CF
+    # proxied CNAMEs the tunnel needs. mx.bnuy.dev is the direct mail-protocols
+    # host (MX/SMTP/IMAP), split from the tunneled mail.bnuy.dev web UI.
     cloudflareDns = {
       zoneId = "8c9053cc3e915513991733b115055402";
       records = [
         "bnuy.dev"
-        "mail.bnuy.dev"
+        "mx.bnuy.dev"
         "mc.bnuy.dev"
         "minecraft.bnuy.dev"
-        "password.bnuy.dev"
         "vpn.bnuy.dev"
       ];
       purgeWildcardName = "*.bnuy.dev";
     };
+    # Operator 403 landing page for fenced services (services."403"). Fence
+    # vhosts (vpn panel, technitium panel, the 443 default stub) serve its
+    # assets when a non-LAN/tailnet client trips a deny.
+    "403" = true;
   };
 }

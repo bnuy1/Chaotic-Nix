@@ -117,6 +117,11 @@ in
 
     networking.nameservers = lib.mkIf cfg.useLocally [ cfg.listenAddress ];
 
+    # ponytail: AGENTS.md P-e asked to enable resolved DNSSEC validation locally,
+# but this box resolves through Technitium which serves the unsigned local
+# `network` zone + split-DNS primary zones authoritatively — resolved would
+# fail those names (no RRSIG) and the box stops resolving its own services.
+# Technitium already validates DNSSEC upstream; the LAN leg stays cleartext.
     services.resolved.settings.Resolve.DNSSEC = lib.mkIf cfg.useLocally false;
 
     systemd.tmpfiles.rules = [

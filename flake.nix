@@ -81,6 +81,12 @@
       url = "path:./modules/server/vaultwarden";
     };
 
+    # Self-contained authentik SSO/IdP module. Local path flake; its
+    # nixosModules.default is imported by modules/server/default.nix.
+    authentik = {
+      url = "path:./modules/server/authentik";
+    };
+
   };
 
   outputs =

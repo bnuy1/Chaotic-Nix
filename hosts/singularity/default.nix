@@ -53,9 +53,24 @@
     # vpn.bnuy.dev -> 192.168.2.3 for LAN clients, so the headscale control
     # URL works on WiFi despite the router's no-hairpin NAT.
     # mc/minecraft.bnuy.dev -> same, so LAN players can join by name.
-    # password.bnuy.dev -> same, the vaultwarden vhost is VPN/split-DNS only:
-    # there is deliberately no public Cloudflare record for it.
-    splitDns = [ "vpn.bnuy.dev" "mc.bnuy.dev" "minecraft.bnuy.dev" "password.bnuy.dev" ];
+    # password.bnuy.dev -> same, so LAN clients reach the vaultwarden vhost
+    # without hairpinning (public A record + LE exist; see vaultwarden module).
+    # dash.bnuy.dev -> same, the homepage vhost is public but the box can't
+    # hairpin its own WAN IP, so LAN clients resolve it to the LAN IP.
+    # kuma.bnuy.dev -> same, uptime-kuma is public.
+    # mail.bnuy.dev + mx.bnuy.dev -> same, so LAN roundcube/webmail and LAN
+    # mail clients (SMTP/IMAP via mx) don't hairpin through the tunnel/grey A.
+    splitDns = [
+      "vpn.bnuy.dev"
+      "mc.bnuy.dev"
+      "minecraft.bnuy.dev"
+      "password.bnuy.dev"
+      "dash.bnuy.dev"
+      "kuma.bnuy.dev"
+      "ntfy.bnuy.dev"
+      "mail.bnuy.dev"
+      "mx.bnuy.dev"
+    ];
   };
 
   # Tailscale control plane + DERP are at vpn.bnuy.dev:8443. DNS resolves it
@@ -73,9 +88,30 @@
     interface = "enp3s0";
   };
 
-  # TEMPORARY: first-user bootstrap (vaultwarden module header, step 1).
-  # Register at https://password.bnuy.dev, then flip back to false + rebuild.
-  services.vaultwarden.signupsAllowed = true;
+  # Vaultwarden: mailcow GAL is the identity source — reconcile the user list
+  # against the active mailcow mailboxes hourly (invite missing, disable
+  # removed). Signups stay closed; new people join by being added to mailcow.
+  # Auth is the /admin cookie flow using the RAW vaultwarden/admin_raw_token
+  # secret (the argon2 hash in admin_token only backs the daemon login check).
+  # See vaultwarden/CHANGES.md (P-b).
+  services.vaultwarden.mailcowSync = true;
+
+  # Public-vhost rate limiting (AGENTS.md P-j): every tunneled request arrives
+  # from 127.0.0.1, so key the zone on the CF-supplied client IP (spoof-proof —
+  # the edge overrides it) and fall back to the peer for direct LAN hits.
+  services.nginx.commonHttpConfig = ''
+    limit_req_zone $bnuy_rate_key zone=bnuy_public:10m rate=10r/s;
+    map $http_cf_connecting_ip $bnuy_rate_key {
+      default $http_cf_connecting_ip;
+      "" $binary_remote_addr;
+    }
+  '';
+
+  # Homepage dashboard (public landing page). Enabled via
+  # serverModules.homepage-dashboard. The vhost + cert pipeline live in the
+  # module (lib.mkTlsApp); dash.bnuy.dev is a grey-cloud A record + Technitium
+  # split-DNS entry so the domain works on LAN without hairpin.
+  services.homepage-dashboard.domain = "dash.bnuy.dev";
 
   # Headscale VPN server (control plane + exit node + subnet router).
   # Enabled via serverModules.vpn-server.
@@ -105,7 +141,10 @@
       # 25565 = Minecraft: tailnet players (staff) connect straight to the box,
       # skipping the Cloudflare relay for lower latency.
       staffPorts = [ 443 993 995 465 587 4190 53 25565 ];
-      guestPorts = [ 443 53 ];
+      # 443 only: view-only web for friends. Port 53 dropped so guests can't
+      # query Technitium and enumerate internal zones (AGENTS.md G); their
+      # devices fall back to their own resolver.
+      guestPorts = [ 443 ];
     };
     subnetRouter = {
       enable = true;
@@ -182,6 +221,4 @@
       ZED_NOTIFY_VERBOSE = true;
     };
   };
-
-  users.users.admin.initialPassword = "password";
 }

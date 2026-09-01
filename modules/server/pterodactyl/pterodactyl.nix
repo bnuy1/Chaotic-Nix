@@ -9,6 +9,14 @@
 let
   cfg = config.services.pterodactyl;
 
+  # shared server plumbing (ssl/vhost/fence helpers); takes only {lib,pkgs}.
+  tls = (import ../lib.nix) { inherit lib pkgs; };
+
+  # The 403 landing-page bits (error_page + asset locations) for the default
+  # 443 stub + any fence vhost (AGENTS posture 5: unknown Host gets the pretty
+  # "access denied" page, never a real app).
+  f403 = tls.fence403 { assetsDir = config.services."403".assetsDir; };
+
   # https://domain[:8443] — omit the port when it's the default 443
   appUrl = "https://${cfg.domain}${
     lib.optionalString (cfg.urlPort != 443) ":${toString cfg.urlPort}"
@@ -399,7 +407,9 @@ in
           # alongside the IP vhost below so either URL is valid.
           ${cfg.domain} = {
             root = "${cfg.dataDir}/public";
-            extraConfig = "index index.php;";
+            # Fenced to LAN + tailnet: wings dials this vhost from its own LAN
+            # IP (192.168.2.3, in the allowlist) so the fence does not break it.
+            extraConfig = "index index.php;\n${tls.vpnLanFence}";
             addSSL = true;
             sslCertificate = cfg.lanCertFile;
             sslCertificateKey = cfg.lanCertKey;
@@ -421,7 +431,27 @@ in
           # reachable by SNI on minecraft.bnuy.dev:8443.
           ${cfg.listenIP} = {
             root = "${cfg.dataDir}/public";
-            extraConfig = "index index.php;";
+            extraConfig = "index index.php;\n${tls.vpnLanFence}";
+            addSSL = true;
+            sslCertificate = cfg.lanCertFile;
+            sslCertificateKey = cfg.lanCertKey;
+            listen = [
+              {
+                addr = "0.0.0.0";
+                port = 443;
+                ssl = true;
+              }
+            ];
+            locations = panelLocations;
+          };
+        }
+        // {
+          # Default 443 server (AGENTS posture rule 5): unknown Host headers or
+          # SNI — incl. the tunnel origin dialing localhost — fall through here.
+          # Instead of a bare connection-close, serve the operator's 403 landing
+          # (deny all → 403 → error_page /403.html). No real app is reachable.
+          # The LAN cert is harmless: the landing page is all that's served.
+          "pterodactyl-403-default" = {
             addSSL = true;
             sslCertificate = cfg.lanCertFile;
             sslCertificateKey = cfg.lanCertKey;
@@ -433,7 +463,11 @@ in
                 ssl = true;
               }
             ];
-            locations = panelLocations;
+            # deny all at server level 403s every request; combine with the
+            # error_page (same extraConfig slot), and f403.locations serves the
+            # assets (their `allow all` overrides the inherited deny).
+            extraConfig = "deny all;\n${f403.extraConfig}";
+            locations = f403.locations;
           };
         }
         // {
@@ -452,6 +486,7 @@ in
             sslCertificate = cfg.lanCertFile;
             sslCertificateKey = cfg.lanCertKey;
             extraConfig = ''
+              ${tls.vpnLanFence}
               location / {
                 proxy_pass http://127.0.0.1:${toString cfg.wingsHttpPort};
                 proxy_http_version 1.1;
@@ -478,8 +513,6 @@ in
       80
       443
       cfg.httpsPort
-      cfg.wingsProxyPort
-      cfg.wingsSftpPort
       # Minecraft (Velocity proxy)
       25565
     ];
@@ -487,6 +520,27 @@ in
       # Bedrock / Geyser
       19132
     ];
+    # Wings proxy (8084) + SFTP (2022) are LAN/tailnet-only, so they are NOT in
+    # allowedTCPPorts (that opens them to the whole WAN). Accept them only from
+    # the trusted sources, and prepend so the accepts never land behind the
+    # chain's later DROP.
+    # ponytail: do NOT copy the technitium `-A INPUT` append pattern — it lands
+    # after the DROP in some NixOS firewall revisions and becomes unreachable.
+    networking.firewall.extraCommands =
+      let
+        subnets = lib.concatStringsSep "," [
+          "192.168.1.0/24"
+          "192.168.2.0/24"
+          "100.64.0.0/10"
+        ];
+      in
+      # ponytail: one --dport rule per port - this kernel's nft_compat can't
+      # translate `-m multiport` (no xt_multiport module).
+      ''
+        for p in ${toString cfg.wingsProxyPort} ${toString cfg.wingsSftpPort}; do
+          iptables -I INPUT 1 -p tcp --dport $p -s ${subnets} -j ACCEPT
+        done
+      '';
     # Self-signed (no Let's Encrypt): replace the ports above with:
     #   [ 8080 cfg.panelPort cfg.wingsHttpPort cfg.wingsSftpPort ]
 
@@ -715,8 +769,10 @@ in
           if grep -q '^  ssl:' /etc/pterodactyl/config.yml; then
             sed -i '/^  ssl:/,/    cert:/{s/    enabled: .*/    enabled: false/}' /etc/pterodactyl/config.yml
           fi
-          # Allow WebSocket connections from both LAN and domain origins.
-          sed -i 's/^allowed_origins: .*/allowed_origins:\n- https:\/\/pterodactyl.network\n- https:\/\/192.168.2.3/' /etc/pterodactyl/config.yml
+          # Allow WebSocket connections from the panel origin (LAN + domain; the
+          # nginx vhosts are fenced anyway, so only these origins can reach the
+          # wings proxy at all).
+          sed -i 's/^allowed_origins: .*/allowed_origins:\n- https:\/\/${cfg.domain}/' /etc/pterodactyl/config.yml
           # Accept forwarded headers from the nginx proxy.
           sed -i 's/^trusted_proxies: .*/trusted_proxies:\n- 127.0.0.1/' /etc/pterodactyl/config.yml
           # Enable bind mounts for game-server backup containers.
@@ -1045,12 +1101,17 @@ in
       "d ${backupDir} 0700 root root -"
       "d /var/cache/restic 0700 root root -"
       # Game-backup repos: mc-backup containers run as uid 994 (pterodactyl)
-      # and need traverse+write on /games/backups and its per-server subdirs.
+      # and need write on the per-server repos. 0770 root:pterodactyl (never
+      # 0777); the Z line re-fixes dirs already created as 0777.
       "d /games/backups 0755 root root -"
-      "d /games/backups/backup-velocity/repo 0777 root root -"
-      "d /games/backups/backup-survival/repo 0777 root root -"
-      "d /games/backups/backup-creative/repo 0777 root root -"
-      "d /games/backups/backup-lobby/repo 0777 root root -"
+      "d /games/backups/backup-velocity/repo 0770 root pterodactyl -"
+      "Z /games/backups/backup-velocity/repo 0770 root pterodactyl -"
+      "d /games/backups/backup-survival/repo 0770 root pterodactyl -"
+      "Z /games/backups/backup-survival/repo 0770 root pterodactyl -"
+      "d /games/backups/backup-creative/repo 0770 root pterodactyl -"
+      "Z /games/backups/backup-creative/repo 0770 root pterodactyl -"
+      "d /games/backups/backup-lobby/repo 0770 root pterodactyl -"
+      "Z /games/backups/backup-lobby/repo 0770 root pterodactyl -"
     ];
 
     systemd.services.pterodactyl-backup = {

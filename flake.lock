@@ -1,5 +1,16 @@
 {
   "nodes": {
+    "authentik": {
+      "locked": {
+        "path": "./modules/server/authentik",
+        "type": "path"
+      },
+      "original": {
+        "path": "./modules/server/authentik",
+        "type": "path"
+      },
+      "parent": []
+    },
     "base16": {
       "inputs": {
         "fromYaml": "fromYaml"
@@ -374,6 +385,7 @@
     },
     "root": {
       "inputs": {
+        "authentik": "authentik",
         "disko": "disko",
         "dots-hyprland": "dots-hyprland",
         "home-manager": "home-manager",

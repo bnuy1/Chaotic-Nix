@@ -36,6 +36,9 @@ let
 
   domain = hs.tunnel.domain;
 
+  # shared server plumbing (ssl/vhost/fence helpers); takes only {lib,pkgs}.
+  hslib = (import ../lib.nix) { inherit lib pkgs; };
+
   # LE cert stays primary for the public control plane; vpn-headscale-cert syncs
   # it (or a bnuy step-ca fallback) to /var/lib/headscale/ssl for the vhost.
   acmeDir = "/var/lib/acme/${domain}";
@@ -159,8 +162,8 @@ in
       };
       guestPorts = lib.mkOption {
         type = lib.types.listOf lib.types.port;
-        default = [ 443 53 ];
-        description = "Ports guest may reach on the service host (view-only web access, DNS)";
+        default = [ 443 ];
+        description = "Ports guest may reach on the service host (view-only web access). Port 53 is deliberately NOT here: guests must not be able to query Technitium and enumerate LAN/internal zones (AGENTS.md G). Guest devices fall back to their own resolver when they can't reach the pushed DNS server.";
       };
     };
 
@@ -214,10 +217,12 @@ in
         magic_dns = true;
         base_domain = "hs.bnuy.dev";
         override_local_dns = false;
-        # Push the rack DNS server (Technitium on singularity) to every tailnet
-        # client so LAN names resolve over the VPN too (reached via the
-        # advertised 192.168.2.0/24 subnet route).
-        nameservers.global = [ "192.168.2.3" ];
+# Push the rack DNS server (Technitium on singularity) to staff/admin so
+      # LAN names resolve over the VPN too (reached via the advertised
+      # 192.168.2.0/24 subnet route). Guests get the same push but their ACL
+      # blocks :53, so they fall back to their own resolver — they are never
+      # able to enumerate local/split-DNS zones (AGENTS.md G).
+      nameservers.global = [ "192.168.2.3" ];
       };
 
       # Self-hosted relay: only our embedded DERP region, no public tailscale
@@ -283,8 +288,10 @@ in
       };
       # The Cloudflare tunnel exposes the http://localhost:80 leg (TLS is
       # terminated at the Cloudflare edge), so this vhost proxies headscale
-      # instead of redirecting to https.
-      virtualHosts."${domain}-http" = {
+      # instead of redirecting to https. The admin panel + API only need to be
+      # reachable over LAN/VPN (the control plane stays on publicPort), so fence
+      # this leg: the tunnel origin (127.0.0.1) and all other sources 403.
+      virtualHosts."${domain}-http" = lib.recursiveUpdate {
         serverName = domain;
         listen = [
           { addr = "0.0.0.0"; port = 80; }
@@ -298,10 +305,12 @@ in
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_read_timeout 3600s;
             proxy_send_timeout 3600s;
+            ${hslib.vpnLanFence}
           '';
         };
-      };
-
+      } (hslib.fence403 {
+        assetsDir = config.services."403".assetsDir;
+      });
       # headscale-admin GUI: tailnet-only (bound to the tailscale IP), so it is
       # never reachable from the LAN/WAN. ACLs already keep staff/guest away
       # from singularity entirely. The static UI is behind nginx basic auth
